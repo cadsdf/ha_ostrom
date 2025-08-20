@@ -1,61 +1,70 @@
-from homeassistant.core import HomeAssistant
-from homeassistant.const import (
-   STATE_UNKNOWN
-   )
-from homeassistant.components.sensor import (
-    PLATFORM_SCHEMA,
-    SensorEntity,
-    SensorStateClass,
-)   
-from homeassistant.helpers.entity import Entity
-import logging
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-_LOGGER = logging.getLogger(__name__)
+from .const import DOMAIN
 
-DOMAIN = "ostrom"
-
-class Ostrom_Price_Now(SensorEntity):
-    
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_native_unit_of_measurement = "EUR/kWh"
-    
-    attr = {"state_class": "total",
-                    "unit_of_measurement": "EUR/kWh",
-                    "device_class": "monetary"
-            }
-    
-    def __init__(self):
-        self._name = "Ostrom Price Now"
-        self._uid = "ostrom_price_now"
-        #            "state_class": "total",
-        #            "unit_of_measurement": "EUR",
-        #            "device_class": "monetary",
-                    
-    @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        return self._name
+class Ostrom_Price_Now(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Actual Price"
+        self._attr_native_unit_of_measurement = "EUR/kWh"
+        self._attr_unique_id = "ostrom_price_now"
+        self._attr_icon = "mdi:currency-eur"
 
     @property
-    def unique_id(self) -> str:
-        """Return the unique ID of the sensor."""
-        return self._uid
-                
-    
-    #async def async_update(self):
-    #    # Your logic to get the new sensor value
-    #    new_value = self.calculate_new_value() 
-    #    self.state = new_value
+    def native_value(self):
+        return self.coordinator.data.get("actual_price")
 
-    #def calculate_new_value(self):
-    #    # Replace this with your actual logic to determine the new value
-    #    return 42.0
-        
-    async def set_sensor_state(self, new_state, attributes=None):
-           self._state = new_state
-           if attributes:
-               self._attributes = attributes
-           self.async_write_ha_state() # Important: Update the state in HA
-           # OR use hass.states.set directly (if not using async_write_ha_state)
-           # self._hass.states.set(self.entity_id, new_state, attributes)  
-           
+class Cost_48hPastSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Cost 48h Past"
+        self._attr_native_unit_of_measurement = "EUR"
+        self._attr_unique_id = "ostrom_cost_48h_past"
+        self._attr_device_class = "monetary"
+        self._attr_icon = "mdi:currency-eur"
+
+
+    @property
+    def native_value(self):
+        return self.coordinator.data.get("cost_48h_past")
+
+    @property
+    def extra_state_attributes(self):
+        data = self.coordinator.data
+        return {
+            "consum": data.get("consum"),
+            "price": data.get("price"),
+            "time": data.get("time"),
+        }
+
+
+class LowestPriceNowBinarySensor(CoordinatorEntity, BinarySensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Lowest Price Now"
+        self._attr_unique_id = "ostrom_lowest_price_now"
+        self._attr_device_class = "power"
+        self._attr_icon = "mdi:power-plug"
+
+    @property
+    def is_on(self):
+        #current = self.coordinator.data.get("actual_price")
+        forecast = self.coordinator.data.get("forecast_prices", [])
+        #if not forecast or current is None:
+        #    return False
+        #min_price = min([p["price"] for p in forecast])
+        return forecast["low"]["price"] == forecast["data"][0]["price"]
+
+    
+async def async_setup_entry(hass, config_entry, async_add_entities):
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    entities = [
+        Ostrom_Price_Now(coordinator),
+        LowestPriceNowBinarySensor(coordinator),
+    ]
+    if config_entry.options.get("use_past_sensor", False):
+        entities.append(Cost_48hPastSensor(coordinator))
+
+    async_add_entities(entities)    
