@@ -1,6 +1,7 @@
 """Constants for Ostrom"""
 # Base component constants
 DOMAIN = "ostrom"
+DEFAULT_SCAN_INTERVAL = 60
 
 # Icons
 ICON = "mdi:current-ac"

@@ -10,8 +10,10 @@
                 }
             }
         },
-        "error" : {
-            "invalid": "fehler"
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid authentication",
+            "unknown": "Unexpected error"
         },
         "abort": {
             "already_configured": "The entity combination is already configured"

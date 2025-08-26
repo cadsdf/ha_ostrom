@@ -15,8 +15,30 @@ class Ostrom_Price_Now(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         return self.coordinator.data.get("actual_price")
+        
+class Ostrom_Price_Raw(CoordinatorEntity, SensorEntity):
+    
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Ostrom Raw forcast Data"
+        self._attr_unique_id = "ostrom_price_rawdata"
+        self._attr_icon = "mdi:chart-timeline-variant"
 
-class Cost_48hPastSensor(CoordinatorEntity, SensorEntity):
+    @property
+    def native_value(self):
+        return self.coordinator.data.get("cost_48h_past")
+
+    @property
+    def extra_state_attributes(self):
+        data = self.coordinator.data
+        return {
+            "average": data.get("consum"),
+            "low": data.get("price"),
+            "data": data.get("time"),
+        }
+        
+
+class Cost_48hPast(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_name = "Cost 48h Past"
@@ -40,7 +62,7 @@ class Cost_48hPastSensor(CoordinatorEntity, SensorEntity):
         }
 
 
-class LowestPriceNowBinarySensor(CoordinatorEntity, BinarySensorEntity):
+class LowestPriceNowBinary(CoordinatorEntity, BinarySensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
         self._attr_name = "Lowest Price Now"
@@ -61,10 +83,11 @@ class LowestPriceNowBinarySensor(CoordinatorEntity, BinarySensorEntity):
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
     entities = [
+        Ostrom_Price_Raw(coordinator),
         Ostrom_Price_Now(coordinator),
-        LowestPriceNowBinarySensor(coordinator),
+        LowestPriceNowBinary(coordinator),
     ]
     if config_entry.options.get("use_past_sensor", False):
-        entities.append(Cost_48hPastSensor(coordinator))
+        entities.append(Cost_48hPast(coordinator))
 
     async_add_entities(entities)    

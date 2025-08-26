@@ -18,7 +18,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_get_data():
+async def async_get_data(lnk_api,get_cost):
     # Replace with your actual async data fetching logic
     # For example, fetch from API or storage
     return {
@@ -28,8 +28,12 @@ async def async_get_data():
         "time": "2025-08-20T01:01:00Z",
     }
 
-class OstromDataUpdateCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass: HomeAssistant):
+class OstromDataCoordinator(DataUpdateCoordinator):
+    
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry):
+        apiuser = config_entry.data.get("apiuser")
+        apipass = config_entry.data.get("apipass")
+        self.api_client = OstromApi(apiuser, apipass, hass.loop)
         super().__init__(
             hass,
             _LOGGER,
@@ -38,9 +42,19 @@ class OstromDataUpdateCoordinator(DataUpdateCoordinator):
             # No update_interval, we'll trigger manually at minute 1 every hour
         )
         self._hass = hass
-
+        self.isinit = False 
+        
     async def _async_update_data(self):
-        return await async_get_data()
+        if not self.isinit:
+            await self.api_client.ostrom_outh()
+            await self.api_client.ostrom_contracts()
+            self.isinit = True
+        ostromdaten = {"cost_48h_past":0,"price":0,"time":"2025-08-03T12:00:00Z","past":"2025-08-01T12:00:00Z","raw":""}
+        erg = await self.api_client.get_forecast_prices()
+        ostromdaten["price"] = erg["data"][0]["price"] / 100
+        ostromdaten["time"] = erg["data"][0]["date"]
+        ostromdaten["raw"] = erg
+        return ostromdaten
 
     async def async_setup_hourly_update(self):
         

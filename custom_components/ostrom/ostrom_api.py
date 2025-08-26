@@ -1,23 +1,28 @@
-import requests
+import aiohttp
 import json
 import datetime
 import base64
 import math
+import asyncio
+import logging
 
+_LOGGER = logging.getLogger(__name__)
 
 class OstromApi:
     
-    def __init__(self,user: str, pwd: str) -> None:
+    def __init__(self,user: str, pwd: str, haloop) -> None:
         """Initialise."""
         self.user = user
         self.pwd = pwd
         self.zip = "00000"
+        self.loop = haloop
+        self.expire = datetime.datetime.utcnow()
         auth_key_str = user + ":" + pwd
         auth_key = base64.b64encode(auth_key_str.encode("ascii"))
         self.apikey = auth_key.decode("ascii")
         
     #get a token - token expires normaly after 3600 secs. (base64_apikey)
-    def ostrom_outh(self):    
+    async def ostrom_outh(self):    
         url = "https://auth.production.ostrom-api.io/oauth2/token"
         payload = {"grant_type": "client_credentials"}
         headers = {
@@ -25,103 +30,151 @@ class OstromApi:
             "content-type": "application/x-www-form-urlencoded",
             "authorization": "Basic " + self.apikey
         }
-        response = requests.post(url, data=payload, headers=headers)
-        if response.status_code == requests.codes.created:
-            self.token = auth['token_type'] + " " + auth['access_token']
-            self.expire = (datetime.datetime.utcnow() + datetime.timedelta(seconds = (int(auth['expires_in']) - 30)))
-        else:
-            err = str(response.status_code) + "#" + response.text
-            raise APIAuthError("Auth error "+err)
-            
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=payload, headers=headers, timeout=10) as response:
+                   text = await response.text()
+                   if response.status == 201:
+                       auth = json.loads(text)
+                       self.token = auth['token_type'] + " " + auth['access_token']
+                       self.expire = (datetime.datetime.utcnow() + datetime.timedelta(seconds = (int(auth['expires_in']) - 30))) 
+                   else:
+                       _LOGGER.error("Authentication failed: status=%s, text=%s", response.status, resp_text)
+                       raise APIAuthError(f"Auth failed: {response.status} - {text}")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout during Ostrom API authentication")
+            raise APIAuthError("Timeout during authentication") 
+        except aiohttp.ClientError as e:
+            _LOGGER.error("Connection error during Ostrom API authentication: %s", str(e))
+            raise APIAuthError(f"Connection error: {str(e)}")
+        except Exception as e:
+            _LOGGER.error("Unexpected error during Ostrom API authentication: %s", str(e))
+            raise    
+                       
     #  nr index contract id - normaly only 1 - so index 0 default
-    def ostrom_contracts(self,nr=0):
+    async def ostrom_contracts(self, nr=0):
         url = "https://production.ostrom-api.io/contracts"
         headers = {
             "accept": "application/json",
-             "authorization": self.token
+            "authorization": self.token
         }
-        response = requests.get(url, headers=headers)
-        if response.status_code == requests.codes.ok:
-            cdat = json.loads(response.text)
-            self.zip = cdat['data'][nr]['address']['zip']
-            self.cid = str(cdat['data'][nr]['id'])
-            #{'zip': 'postleitzahl', 'cid': 'vertragrsid'}
-        else:
-            err = str(response.status_code) + "#" + response.text
-            
-    def ostrom_ha_setup(self):
-        ostrom_outh(self)
-        ostrom_contracts(self)
-        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=10) as response:
+                    text = await response.text()
+                    if response.status == 200:
+                        cdat = json.loads(text)
+                        self.zip = cdat['data'][nr]['address']['zip']
+                        self.cid = str(cdat['data'][nr]['id'])
+                    else:
+                        _LOGGER.error("Get Contract failed: status=%s, text=%s", response.status, text) 
+                        raise APIConnectionError(f"Contracts failed: {response.status} - {text}")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout during Ostrom API Get Contracts")
+            raise APIAuthError("Timeout during contract") 
+        except aiohttp.ClientError as e:
+            _LOGGER.error("Connection error during Ostrom API get contracts: %s", str(e))
+            raise APIAuthError(f"Connection error: {str(e)}")
+        except Exception as e:
+            _LOGGER.error("Unexpected error during Ostrom API contract: %s", str(e))
+            raise                 
+                
     # forcast price maxinal data 36 hours and data are processed to "date" and enduser "price"
     # forcast hours (max 36)
-    def ostrom_price(self, starttime, stunden = 36):
+    async def ostrom_price(self, starttime, stunden = 36):
         tax = "grossKwhTaxAndLevies"
         kwprice = "grossKwhPrice"
         timeformat = "%Y-%m-%dT%H:00:00.000Z"
         now = starttime.strftime(timeformat)
         future = (starttime + datetime.timedelta(hours=stunden)).strftime(timeformat)
-        url = "https://production.ostrom-api.io/spot-prices?startDate=" + now + "&endDate=" + future + "&resolution=HOUR&zip=" + zip
+        url = "https://production.ostrom-api.io/spot-prices?startDate=" + now + "&endDate=" + future + "&resolution=HOUR&zip=" + self.zip
         headers = {
             "accept": "application/json",
             "authorization": self.token
         }
-        response = requests.get(url, headers=headers)
-        erg = json.loads(response.text)
-        ok = (response.status_code == requests.codes.ok)
-        japex = {"average":0 , "low" : {"date":"","price":100.0}, "data":[] }
-        for ix in erg['data']:
-            #gesamtpreis ermitteln
-            jg = round(float(ix[tax]) + float(ix[kwprice]), 2)
-            #minmalwert
-            if  jg < japex["low"]["price"]:
-                japex["low"]["date"] = ix['date']
-                japex["low"]["price"] = jg
-            # liste aufbauen
-            japex["data"].append({'date': ix['date'],'price':jg})
-            # summe aufaddieren
-            japex['average'] = japex['average']+jg
-        # durchschnitt
-        japex['average'] = round(japex['average'] / len(japex['data']),2)
-        return japex # json.dumps(japex)
-       # one hour {"date":"string date.hour","price": powerprice}
-       #{"average": price_average over data, "low": lowes Hour, "data": [{one hour},...]  
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=10) as response:    
+                    text = await response.text()
+                    if response.status == 200:
+                        erg = json.loads(text)
+                        japex = {"average":0 , "low" : {"date":"","price":100.0}, "data":[] }
+                        for ix in erg['data']:
+                            #gesamtpreis ermitteln
+                            total_price = round(float(ix[tax]) + float(ix[kwprice]), 2)
+                            japex["average"] += total_price
+                            #minmalwert
+                            if  total_price < japex["low"]["price"]:
+                                japex["low"]["date"] = ix['date']
+                                japex["low"]["price"] = total_price
+                            # liste aufbauen
+                            japex["data"].append({'date': ix['date'],'price': total_price})
+                        # durchschnitt
+                        japex['average'] = round(japex['average'] / len(japex['data']),2)
+                        return japex # json.dumps(japex)
+                        # one hour {"date":"string date.hour","price": powerprice}
+                        #{"average": price_average over data, "low": lowes Hour, "data": [{one hour},...]  
+                    else:
+                        _LOGGER.error("Get Price failed: status=%s, text=%s", response.status, text) 
+                        raise APIConnectionError(f"get Price failed: {response.status} - {text}")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout during Ostrom API Get Contracts")
+            raise APIConnectionError("Timeout during get Price") 
+        except aiohttp.ClientError as e:
+            _LOGGER.error("Connection error during Ostrom API get contracts: %s", str(e))
+            raise APIConnectionError(f"Price error: {str(e)}")
+        except Exception as e:
+            _LOGGER.error("Unexpected error during Ostrom API get price: %s", str(e))
+            raise                 
+                    
        
-       # data hour : {"date": "string.datetime", "kWh": from_grid }
-       #[{data_hour},....] start at 0:00 , end 23:00 selected day in past.
-    def ostrom_consum(self, daypast=2):
-        timeformat = "%Y-%m-%dT00:00:00.000Z" #ganze tage
-        dvon = (datetime.datetime.utcnow() - datetime.timedelta(days=daypast)).strftime(timeformat)
-        dbis = (datetime.datetime.utcnow() - datetime.timedelta(days=(daypast-1))).strftime(timeformat)
-        url = "https://production.ostrom-api.io/contracts/" + cid + "/energy-consumption?startDate=" + dvon + "&endDate=" + dbis + "&resolution=HOUR"
+    async def ostrom_consum(self, starttime, stunden = 1):
+        timeformat = "%Y-%m-%dT%H:00:00.000Z"
+        dvon = starttime.strftime(timeformat)
+        dbis = (starttime + datetime.timedelta(hours=stunden)).strftime(timeformat)
+        url = "https://production.ostrom-api.io/contracts/" + self.cid + "/energy-consumption?startDate=" + dvon + "&endDate=" + dbis + "&resolution=HOUR"
         headers = {
             "accept": "application/json",
             "authorization": self.token
         }
-        response = requests.get(url, headers=headers)
-        ok = (response.status_code == requests.codes.ok)
-        if response.status_code == requests.codes.ok:
-            erg = json.loads(response.text)
-            tsum = 0
-            for lo in erg["data"]:
-                #print(lo)
-                tsum = tsum + lo["kWh"]
-            erg["daysum"]=tsum
-        else:
-            erg= {"err" : str(response.status_code) + "#" + response.text}
-        return erg #json.dumps(erg['data'])
-        
-    def get_forecast_prices(self):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=10) as response:
+                    if response.status == 200:
+                        text = await response.text()
+                        return text
+                    else:
+                        _LOGGER.error("Get Consum failed: status=%s, text=%s", response.status, text) 
+                        raise APIConnectionError(f"get Consum failed: {response.status} - {text}")
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout during Ostrom API Get Consum")
+            raise APIConnectionError("Timeout during get Price") 
+        except aiohttp.ClientError as e:
+            _LOGGER.error("Connection error during Ostrom API get consum: %s", str(e))
+            raise APIConnectionError(f"Price error: {str(e)}")
+        except Exception as e:
+            _LOGGER.error("Unexpected error during Ostrom API get consum: %s", str(e))
+            raise                         
+                
+    async def get_forecast_prices(self):
         jetzt = datetime.datetime.utcnow()
-        if self.expire > jetzt:
-            self.ostrom_outh()
-        daten = self.ostrom_price(self, datetime.datetime.utcnow(), stunden = 36)
-        return daten
+        # Prüfe die Token-Gültigkeit:
+        if not self.expire or self.expire < jetzt:
+            await self.ostrom_outh()
+        # Preise mit gültigem Token abfragen:
+        daten = await self.ostrom_price(jetzt, stunden=36)
+        return daten            
         
-    def get_past_price_consum(self):
-        jetzt = datetime.datetime.utcnow()
-        if self.expire > jetzt:
-            self.ostrom_outh()
+        
+    async def get_past_price_consum(self):
+        past = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+        jetzt = datetime.datetime.utcnow()   
+        if not self.expire or self.expire < jetzt:
+            await self.ostrom_outh()
+            
+
+        
+        
         
 
     

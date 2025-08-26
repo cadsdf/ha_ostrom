@@ -15,10 +15,8 @@ import asyncio
 import datetime
 #import timedelta
 import logging
-import requests
 import json
-import base64
-import math
+
 from .ostrom_api import *
 
 from .const import DOMAIN
@@ -29,43 +27,29 @@ CONF_TOPIC = 'ostrom_login setup'
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up Ostrom from yaml (old version)."""
+    if DOMAIN in config:
+        hass.data[DOMAIN] = await hass.async_add_executor_job(
+            ostrom_ha_setup, config[DOMAIN]["apiuser"], config[DOMAIN]["apipass"]
+        )
+    return True
     
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    
-        
-    api_client = OstromApi(entry.data["apiuser"],entry.data["apipass"])
-    # Example: YourAPIClient(entry.data["apiuser"], entry.data["apipass"])
 
-    # Create the coordinator instance
-    coordinator = OstromDataCoordinator(hass, api_client)
-    
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    coordinator = OstromDataCoordinator(hass, entry)
     await coordinator.async_setup_hourly_update()
     await coordinator.async_config_entry_first_refresh()
-    
-    entities = [
-        Ostrom_Price_Now(coordinator),
-        LowestPriceNowBinarySensor(coordinator),
-    ]
-    if config_entry.options.get("cost_48h_past_enabled", False):
-        entities.append(Cost_48hPastSensor(coordinator))
-
-    async_add_entities(entities)
-
-    # Save the coordinator in hass.data under DOMAIN and entry_id
-    hass.data.setdefault(DOMAIN, {})  # Ensure DOMAIN dict exists
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-    
-
+    # Forward to sensor platform
+    await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     return True
-
+    
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    # This is called when an entry/configured device is to be removed. The class
-    # needs to unload itself, and remove callbacks. See the classes for further
-    # details
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
+    if unload_ok:
+        hass.data.pop(DOMAIN, None)
     return unload_ok    
     
 
