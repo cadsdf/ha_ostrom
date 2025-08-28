@@ -39,7 +39,7 @@ class OstromApi:
                        self.token = auth['token_type'] + " " + auth['access_token']
                        self.expire = (datetime.datetime.utcnow() + datetime.timedelta(seconds = (int(auth['expires_in']) - 30))) 
                    else:
-                       _LOGGER.error("Authentication failed: status=%s, text=%s", response.status, resp_text)
+                       _LOGGER.error("Authentication failed: status=%s, text=%s", response.status, text)
                        raise APIAuthError(f"Auth failed: {response.status} - {text}")
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout during Ostrom API authentication")
@@ -51,8 +51,8 @@ class OstromApi:
             _LOGGER.error("Unexpected error during Ostrom API authentication: %s", str(e))
             raise    
                        
-    #  nr index contract id - normaly only 1 - so index 0 default
-    async def ostrom_contracts(self, nr=0):
+    #  liste alle Veträge
+    async def ostrom_contracts(self):
         url = "https://production.ostrom-api.io/contracts"
         headers = {
             "accept": "application/json",
@@ -64,8 +64,9 @@ class OstromApi:
                     text = await response.text()
                     if response.status == 200:
                         cdat = json.loads(text)
-                        self.zip = cdat['data'][nr]['address']['zip']
-                        self.cid = str(cdat['data'][nr]['id'])
+                        return cdat['data']
+                        #self.zip = cdat['data'][nr]['address']['zip']
+                        #self.cid = str(cdat['data'][nr]['id'])
                     else:
                         _LOGGER.error("Get Contract failed: status=%s, text=%s", response.status, text) 
                         raise APIConnectionError(f"Contracts failed: {response.status} - {text}")
