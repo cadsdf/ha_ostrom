@@ -28,7 +28,7 @@ async def async_get_data(lnk_api,get_cost):
         "time": "2025-08-20T01:01:00Z",
     }
 
-class OstromDataCoordinator(DataUpdateCoordinator):
+class OstromCoordinator(DataUpdateCoordinator):
     
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry):
         apiuser = config_entry.data.get("apiuser")
