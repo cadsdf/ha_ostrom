@@ -60,7 +60,7 @@ yaxis:
 
 Und Preise über ein Quartal Tagesgenau mit Min / Max / Durchschnitt
 
-![](../git/my_smart_home/ha_ostrom/apex/quartal_min_max.png)![](last12h_and_forecast.png)
+![](quartal_min_max.png)
 
 ```
 type: custom:apexcharts-card
@@ -99,3 +99,5 @@ yaxis:
   - decimals: 2
 
 ```
+
+
