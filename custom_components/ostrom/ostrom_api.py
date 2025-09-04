@@ -21,6 +21,10 @@ class OstromApi:
         auth_key = base64.b64encode(auth_key_str.encode("ascii"))
         self.apikey = auth_key.decode("ascii")
         
+    def set_zip_cid(self,zipin,cidin):
+        self.zip = zipin
+        self.cid = cidin
+        
     #get a token - token expires normaly after 3600 secs. (base64_apikey)
     async def ostrom_outh(self):    
         url = "https://auth.production.ostrom-api.io/oauth2/token"
@@ -143,7 +147,8 @@ class OstromApi:
                 async with session.get(url, headers=headers, timeout=10) as response:
                     if response.status == 200:
                         text = await response.text()
-                        return text
+                        cdat = json.loads(text)
+                        return cdat['data']
                     else:
                         _LOGGER.error("Get Consum failed: status=%s, text=%s", response.status, text) 
                         raise APIConnectionError(f"get Consum failed: {response.status} - {text}")
@@ -168,17 +173,35 @@ class OstromApi:
         
         
     async def get_past_price_consum(self):
-        past = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+        # Zeitpunkt vor 48h
+        past = datetime.datetime.utcnow() - datetime.timedelta(hours=48)
         jetzt = datetime.datetime.utcnow()   
         if not self.expire or self.expire < jetzt:
             await self.ostrom_outh()
-            
+        # Preis für die Stunde vor 48h holen
+        price_data = await self.ostrom_price(past, stunden=1)
+        price = price_data["data"][0]["price"]  # in cent!
+        date_price = price_data["data"][0]["date"]
+        # Verbrauch für die Stunde vor 48h holen
+        consum_data = await self.ostrom_consum(past, stunden=1)
+        consum_kwh = consum_data[0]["kWh"]
+        date_consum = consum_data[0]["date"]
+        # Vergleich der Zeitstempel
+        date_mismatch = (date_price != date_consum)
+        if date_mismatch:
+            _LOGGER.warning(f"Mismatch in date between price ({date_price}) and consumption ({date_consum}) data.")
+            kosten = 0
+        else:
+            kosten = round(price * consum_kwh / 100, 4)
+        return {
+            "cost_48h_past": kosten,
+            "price_48h_past": price,
+            "consum_48h_past": consum_kwh,
+            "time_48h_past": date_price,
+            "date_mismatch": date_mismatch,
+        }    
 
-        
-        
-        
 
-    
 class APIAuthError(Exception):
     """Exception class for auth error."""
 

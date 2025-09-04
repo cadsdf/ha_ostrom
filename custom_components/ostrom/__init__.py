@@ -32,14 +32,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
     
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    coordinator = OstromDataCoordinator(hass, entry)
+    coordinator = OstromCoordinator(hass, entry)
     await coordinator.async_setup_hourly_update()
     await coordinator.async_config_entry_first_refresh()
+    # Coordinator im Data-Dictionary speichern!
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     # Forward to sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     return True
     
-
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

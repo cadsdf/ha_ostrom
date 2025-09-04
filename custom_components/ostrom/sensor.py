@@ -4,49 +4,67 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 
+import logging
+_LOGGER = logging.getLogger(__name__)
+
 class Ostrom_Price_Now(CoordinatorEntity, SensorEntity):
+    
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Actual Price"
+        contract_id = getattr(coordinator, "contract_id", "unknown")
+        contract_index = getattr(coordinator, "contract_index", 1)
+        self._attr_name = f"Ostrom actual Price ({contract_index})"
         self._attr_native_unit_of_measurement = "EUR/kWh"
-        self._attr_unique_id = "ostrom_price_now"
+        self._attr_unique_id = f"ostrom_price_now_{contract_id}"
         self._attr_icon = "mdi:currency-eur"
+        #_LOGGER.warning(f"Ostrom_Price_Now: contract_id={contract_id}")
+        #_LOGGER.warning(f"Ostrom_Price_Now: contract_index={contract_index}")
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("actual_price")
+        eur_price = self.coordinator.data.get("actual_price") / 100
+        return eur_price
+        
+    @property
+    def extra_state_attributes(self):
+        return {
+            "id": self._attr_unique_id,
+        }    
         
 class Ostrom_Price_Raw(CoordinatorEntity, SensorEntity):
     
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Ostrom Raw forcast Data"
-        self._attr_unique_id = "ostrom_price_rawdata"
+        contract_id = getattr(coordinator, "contract_id", "unknown")
+        contract_index = getattr(coordinator, "contract_index", 1)
+        self._attr_name = f"Ostrom Raw forcast Data ({contract_index})"
+        self._attr_unique_id = f"ostrom_raw_forecastdata_{contract_id}"
         self._attr_icon = "mdi:chart-timeline-variant"
-
+        
     @property
     def native_value(self):
-        return self.coordinator.data.get("cost_48h_past")
-
+        eur_price = self.coordinator.data.get("actual_price")
+        return eur_price
+        
     @property
     def extra_state_attributes(self):
-        data = self.coordinator.data
-        return {
-            "average": data.get("consum"),
-            "low": data.get("price"),
-            "data": data.get("time"),
-        }
-        
+        raw_data = self.coordinator.data.get("raw") 
+        attrs = {}
+        if raw_data:
+            attrs.update(raw_data)
+        attrs["id"] = self._attr_unique_id
+        return attrs    
 
 class Cost_48hPast(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Cost 48h Past"
+        contract_id = getattr(coordinator, "contract_id", "unknown")
+        contract_index = getattr(coordinator, "contract_index", 1)
+        self._attr_name = f"Cost 48h Past ({contract_index})"
         self._attr_native_unit_of_measurement = "EUR"
-        self._attr_unique_id = "ostrom_cost_48h_past"
+        self._attr_unique_id = f"ostrom_cost_48h_past_{contract_id}"
         self._attr_device_class = "monetary"
-        self._attr_icon = "mdi:currency-eur"
-
+        self._attr_icon = "mdi:cash"
 
     @property
     def native_value(self):
@@ -56,30 +74,41 @@ class Cost_48hPast(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self):
         data = self.coordinator.data
         return {
-            "consum": data.get("consum"),
-            "price": data.get("price"),
-            "time": data.get("time"),
+            "consum": data.get("consum_48h_past"),
+            "price": data.get("price_48h_past"),
+            "time": data.get("time_48h_past"),
+            "id": self._attr_unique_id,
+            "date_mismatch": data.get("date_mismatch", False),  # <------ hier das Boolean-Attribut!
         }
 
 
 class LowestPriceNowBinary(CoordinatorEntity, BinarySensorEntity):
-    def __init__(self, coordinator):
+     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Lowest Price Now"
-        self._attr_unique_id = "ostrom_lowest_price_now"
+        contract_id = getattr(coordinator, "contract_id", "unknown")
+        contract_index = getattr(coordinator, "contract_index", 1)
+        self._attr_name = f"Lowest Price Now ({contract_index})"
+        self._attr_unique_id = f"ostrom_lowest_price_now_{contract_id}"
         self._attr_device_class = "power"
         self._attr_icon = "mdi:power-plug"
+        
+     def truncate_float(self, val, digits=2):
+        if val is None:
+            return None
+        try:
+            return int(float(val) * 10**digits) / 10**digits
+        except (TypeError, ValueError):
+            return None   
+            
+     @property
+     def is_on(self):
+        raw_data = self.coordinator.data.get("raw")
+        if raw_data and "low" in raw_data and "data" in raw_data and len(raw_data["data"]) > 0:
+            low_price = self.truncate_float(raw_data["low"]["price"], 1)
+            current_price = self.truncate_float(raw_data["data"][0]["price"], 1)
+            return current_price == low_price
+        return False        
 
-    @property
-    def is_on(self):
-        #current = self.coordinator.data.get("actual_price")
-        forecast = self.coordinator.data.get("forecast_prices", [])
-        #if not forecast or current is None:
-        #    return False
-        #min_price = min([p["price"] for p in forecast])
-        return forecast["low"]["price"] == forecast["data"][0]["price"]
-
-    
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
     entities = [

@@ -1,20 +1,49 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "Add Ostrom developer productive Access",
-                "description": "https://developer.ostrom-api.io/auth/login",
-                "data": {
-                    "apiuser": "ostrom user key",
-                    "apipass": "ostrom password key"
-                }
-            }
-        },
-        "error" : {
-            "invalid": "fehler"
-        },
-        "abort": {
-            "already_configured": "The entity combination is already configured"
-        }
+  "title": "Ostrom API Integration",
+  "description": "Integration for Ostrom electricity prices and consumption data.",
+  "step": {
+    "user": {
+      "title": "Enter Access Data",
+      "description": "Please enter your Ostrom API credentials.",
+      "data": {
+        "apiuser": "Username",
+        "apipass": "Password"
+      }
+    },
+    "select_contract": {
+      "title": "Select Contract",
+      "description": "Please select a contract.",
+      "data": {
+        "contract_id": "Contract"
+      }
+    },
+    "options": {
+      "title": "Options",
+      "description": "Additional settings for sensors.",
+      "data": {
+        "use_past_sensor": "Show cost of last 48 hours as sensor"
+      }
     }
+  },
+  "error": {
+    "invalid_auth": "The credentials are invalid. Please check your username and password.",
+    "cannot_connect": "Failed to connect to the Ostrom API. Please check network and credentials.",
+    "unknown": "An unknown error occurred. See logs for details.",
+    "invalid_contract": "Invalid contract selected. Please try again.",
+    "timeout": "Timeout while communicating with the Ostrom API.",
+    "api_auth": "Authentication with the Ostrom API failed.",
+    "api_connection": "Error connecting to the Ostrom API.",
+    "no_contracts_found": "No contracts found. Please check your credentials.",
+    "options_save": "Options could not be saved."
+  },
+  "option": {
+    "use_past_sensor": {
+      "name": "Show cost of last 48 hours as sensor",
+      "description": "Display a sensor for the cost of the last 48 hours."
+    }
+  },
+  "success": {
+    "config_entry_created": "Integration configured successfully.",
+    "options_saved": "Options saved successfully."
+  }
 }

@@ -1,0 +1,49 @@
+{
+  "title": "Ostrom API Integration",
+  "description": "Integration für Ostrom Strompreise und Verbrauchsdaten.",
+  "step": {
+    "user": {
+      "title": "Zugangsdaten eingeben",
+      "description": "Bitte deine Ostrom API Zugangsdaten eingeben.",
+      "data": {
+        "apiuser": "Benutzername",
+        "apipass": "Passwort"
+      }
+    },
+    "select_contract": {
+      "title": "Vertrag auswählen",
+      "description": "Bitte einen Vertrag auswählen.",
+      "data": {
+        "contract_id": "Vertrag"
+      }
+    },
+    "options": {
+      "title": "Optionen",
+      "description": "Zusätzliche Einstellungen für Sensoren.",
+      "data": {
+        "use_past_sensor": "Vergangene Kosten als Sensor anzeigen"
+      }
+    }
+  },
+  "error": {
+    "invalid_auth": "Die Zugangsdaten sind ungültig. Bitte prüfe Benutzername und Passwort.",
+    "cannot_connect": "Verbindung zur Ostrom API fehlgeschlagen. Bitte prüfe Netzwerk und Zugangsdaten.",
+    "unknown": "Ein unbekannter Fehler ist aufgetreten. Siehe Protokoll für Details.",
+    "invalid_contract": "Ungültiger Vertrag ausgewählt. Bitte erneut versuchen.",
+    "timeout": "Zeitüberschreitung bei der Kommunikation mit der Ostrom API.",
+    "api_auth": "Authentifizierung bei der Ostrom API fehlgeschlagen.",
+    "api_connection": "Fehler bei der Verbindung zur Ostrom API.",
+    "no_contracts_found": "Keine Verträge gefunden. Bitte prüfe die Zugangsdaten.",
+    "options_save": "Optionen konnten nicht gespeichert werden."
+  },
+  "option": {
+    "use_past_sensor": {
+      "name": "Vergangene Kosten als Sensor anzeigen",
+      "description": "Zeige einen Sensor für die Kosten der letzten 48 Stunden."
+    }
+  },
+  "success": {
+    "config_entry_created": "Integration erfolgreich konfiguriert.",
+    "options_saved": "Optionen erfolgreich gespeichert."
+  }
+}

@@ -31,9 +31,21 @@ async def async_get_data(lnk_api,get_cost):
 class OstromCoordinator(DataUpdateCoordinator):
     
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry):
-        apiuser = config_entry.data.get("apiuser")
-        apipass = config_entry.data.get("apipass")
-        self.api_client = OstromApi(apiuser, apipass, hass.loop)
+        self.apiuser = config_entry.data.get("apiuser")
+        self.apipass = config_entry.data.get("apipass")
+        self.zip_code = config_entry.data.get("zip")
+        self.contract_id = config_entry.data.get("contract_id")
+        self.use_past_sensor = config_entry.options.get("use_past_sensor", False)
+        # Der Index kann bei Multi-Contract später gesetzt werden (hier z.B. 1)
+        self.contract_index = config_entry.data.get("contract_index", 1)
+        self.want_consumption = config_entry.data.get("want_consumption", False)
+
+        self.api_client = OstromApi(self.apiuser, self.apipass, hass.loop)
+        # Setze ZIP und CID direkt nach Instanziierung
+        self.api_client.set_zip_cid(self.zip_code, self.contract_id)
+        # Lies Option aus:
+        self.use_past_sensor = config_entry.options.get("use_past_sensor", False)
+        
         super().__init__(
             hass,
             _LOGGER,
@@ -42,18 +54,30 @@ class OstromCoordinator(DataUpdateCoordinator):
             # No update_interval, we'll trigger manually at minute 1 every hour
         )
         self._hass = hass
-        self.isinit = False 
         
     async def _async_update_data(self):
-        if not self.isinit:
-            await self.api_client.ostrom_outh()
-            await self.api_client.ostrom_contracts()
-            self.isinit = True
-        ostromdaten = {"cost_48h_past":0,"price":0,"time":"2025-08-03T12:00:00Z","past":"2025-08-01T12:00:00Z","raw":""}
+        ostromdaten = {
+            "cost_48h_past": 0,
+            "price": 0,           # in Cent!
+            "actual_price": 0,    # in EUR!
+            "time": "",
+            "past": "",
+            "raw": "",
+        }
         erg = await self.api_client.get_forecast_prices()
-        ostromdaten["price"] = erg["data"][0]["price"] / 100
+        price_cent = erg["data"][0]["price"]              # Cent vom API
+        price_eur = price_cent / 100                      # Umrechnung in Euro
+
+        ostromdaten["price"] = price_cent                 # Cent
+        ostromdaten["actual_price"] = price_eur           # Euro
         ostromdaten["time"] = erg["data"][0]["date"]
         ostromdaten["raw"] = erg
+        # Verbrauchsdaten holen, wenn gewünscht
+        #if self.want_consumption:
+        if self.use_past_sensor: 
+            ostromdaten.update(await self.api_client.get_past_price_consum())
+            #consum = await self.api_client.get_past_price_consum()
+            #ostromdaten["consum"] = consum
         return ostromdaten
 
     async def async_setup_hourly_update(self):

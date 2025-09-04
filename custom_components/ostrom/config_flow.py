@@ -8,13 +8,15 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries, exceptions
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+
+
 from homeassistant.const import (
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
 
 #import requests
 from .ostrom_api import OstromApi, APIAuthError, APIConnectionError
@@ -38,23 +40,6 @@ OPTIONS_SCHEMA = vol.Schema(
 )
     
 
-async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-   
-    """Validate the user input allows us to connect.
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-    
-    api = OstromApi(data["apiuser"], data["apipass"])
-    
-    try:
-        # TODO: Change this to use a real api call for data
-        await hass.async_add_executor_job(api.ostrom_outh)
-        # If the authentication is wrong, raise InvalidAuth
-    except APIAuthError as err:
-        _LOGGER.error("Auth Error {0} ",err)
-        raise InvalidAuth from err
-    return {"title": f"Example Integration - {data[apiuser]}"}
-
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle Ostrom config flow with selectable single contract and consumption option."""
@@ -70,19 +55,22 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle inital step."""
         errors = {}
         if user_input is not None:
+            self.apiuser = user_input["apiuser"]
+            self.apipass = user_input["apipass"]
             # lege die Api an
-            self.api = OstromApi(data["apiuser"], data["apipass"])
+            data = user_input
+            self.api = OstromApi(data["apiuser"], data["apipass"],self.hass.loop)
             try:
                 # test zugangsdaten
-                await hass.async_add_executor_job(api.ostrom_outh)   
+                await self.api.ostrom_outh()  
                 # alle verträge holen
-                contracts = await self.hass.async_add_executor_job(api.ostrom_contracts)
-                contract_choices = {}
+                contracts = await self.api.ostrom_contracts()
+                self.contracts = contracts  # <-- Liste speichern!
+                self.contract_choices = {}
                 for vertrag in contracts:
                     addr = vertrag["address"]
                     display = f"{addr['city']}, {addr['street']} {addr['houseNumber']} ({addr['zip']}) [{vertrag['id']}]"
-                    contract_choices[vertrag["id"]] = display
-                self.contract_choices = contract_choices
+                    self.contract_choices[str(vertrag["id"])] = display
                 return await self.async_step_select_contract()    
 
             except InvalidAuth:
@@ -92,40 +80,70 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                  _LOGGER.exception("Unexpected exception")
                  errors["base"] = "unknown"       
                
-            #if result:
-            return self.async_create_entry(title="myostrom", data=user_input)
-           #else:
-        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
+           # return self.async_create_entry(title="myostrom", data=user_input)
+       
         return self.async_show_form(
             step_id="user", data_schema=DATA_SCHEMA, errors=errors
         )
         
-        async def async_step_select_contract(self, user_input: dict[str, Any] | None = None):
-            contract_schema = vol.Schema({
-                vol.Required("contract_id"): vol.In(self.contract_choices),
-                vol.Optional("want_consumption", default=False): bool
-            })
-            errors = {}
-            if user_input is not None:
-                contract_id = user_input["contract_id"]
-                want_consumption = user_input["want_consumption"]
-            self._set_unique_id(contract_id)
+    async def async_step_select_contract(self, user_input: dict[str, Any] | None = None):
+        contract_schema = vol.Schema({
+            vol.Required("contract_id"): vol.In(self.contract_choices)
+        })
+        errors = {}
+        if user_input is not None:
+            contract_id = user_input["contract_id"]
+            await self.async_set_unique_id(contract_id)
             self._abort_if_unique_id_configured()
-            # Suche die Adresse im choices
-            address = self.contract_choices[contract_id]
-            # Entry anlegen mit allen Daten
-            entry_data = {
-                "contract_id": contract_id,
-                "address": address,
-                "want_consumption": want_consumption
-            }
-            return self.async_create_entry(
-                title=f"Ostrom {address}",
-                data=entry_data
+ 
+            selected_contract = next(
+                (c for c in self.contracts if str(c["id"]) == str(contract_id)),
+                None
             )
+            if selected_contract is None:
+                errors["base"] = "invalid_contract"
+            else:
+                addr = selected_contract.get("address", {})
+                zip_code = addr.get("zip", "")
+                address = f"{addr.get('city','')}, {addr.get('street','')} {addr.get('houseNumber','')} ({zip_code})"
+                entry_data = {
+                    "apiuser": self.apiuser,          # Zugangsdaten mitgeben!
+                    "apipass": self.apipass,
+                    "contract_id": contract_id,
+                    "zip": zip_code,
+                    "address": address,
+                }
+                return self.async_create_entry(
+                    title=f"Ostrom {address}",
+                    data=entry_data
+                )
+         
         return self.async_show_form(
             step_id="select_contract", data_schema=contract_schema, errors=errors
         )
+        
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return OstromOptionsFlowHandler(config_entry)    
+        
+        
+class OstromOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle an options flow for Ostrom."""
+
+    #def __init__(self, config_entry):
+        #self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+        # Default value from config_entry.options or fallback to False
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Optional(OPTION_BOOL_KEY, default=self.config_entry.options.get(OPTION_BOOL_KEY, False)): bool,
+            }),
+        )        
 
 
 class CannotConnect(HomeAssistantError):
