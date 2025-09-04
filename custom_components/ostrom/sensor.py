@@ -22,7 +22,7 @@ class Ostrom_Price_Now(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        eur_price = self.coordinator.data.get("actual_price") / 100
+        eur_price = self.coordinator.data.get("actual_price")
         return eur_price
         
     @property
@@ -43,8 +43,8 @@ class Ostrom_Price_Raw(CoordinatorEntity, SensorEntity):
         
     @property
     def native_value(self):
-        eur_price = self.coordinator.data.get("actual_price")
-        return eur_price
+        cent_price = self.coordinator.data.get("actual_price") * 100
+        return cent_price
         
     @property
     def extra_state_attributes(self):
