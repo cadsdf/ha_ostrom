@@ -24,7 +24,15 @@
     }
   },
   "error": {
-    "base": "An error occurred. Please check your credentials, contract selection or network connection."
+    "invalid_auth": "The credentials are invalid. Please check your username and password.",
+    "cannot_connect": "Failed to connect to the Ostrom API. Please check network and credentials.",
+    "unknown": "An unknown error occurred. See logs for details.",
+    "invalid_contract": "Invalid contract selected. Please try again.",
+    "timeout": "Timeout while communicating with the Ostrom API.",
+    "api_auth": "Authentication with the Ostrom API failed.",
+    "api_connection": "Error connecting to the Ostrom API.",
+    "no_contracts_found": "No contracts found. Please check your credentials.",
+    "options_save": "Options could not be saved."
   },
   "option": {
     "use_past_sensor": {
