@@ -1,41 +1,5 @@
 {
   "title": "Ostrom API Integration",
-  "step": {
-    "user": {
-      "title": "Enter Access Data",
-      "data": {
-        "apiuser": "Username",
-        "apipass": "Password"
-      }
-    },
-    "select_contract": {
-      "title": "Select Contract",
-      "description": "Please select a contract.",
-      "data": {
-        "contract_id": "Contract"
-      }
-    },
-    "options": {
-      "title": "Options",
-      "description": "Additional settings for sensors.",
-      "data": {
-        "use_past_sensor": "Show cost of last 48 hours as sensor"
-      }
-    }
-  },
-  "error": {
-    "invalid_auth": "The credentials are invalid. Please check your username and password.",
-    "cannot_connect": "Failed to connect to the Ostrom API. Please check network and credentials.",
-    "unknown": "An unknown error occurred. See logs for details."
-  },
-  "option": {
-    "use_past_sensor": {
-      "name": "Show cost of last 48 hours as sensor",
-      "description": "Display a sensor for the cost of the last 48 hours."
-    }  
-  },
-  "success": {
-    "config_entry_created": "Integration configured successfully.",
-    "options_saved": "Options saved successfully."
-  }
+  "description": "Integration for Ostrom electricity prices and consumption data."
 }
+
