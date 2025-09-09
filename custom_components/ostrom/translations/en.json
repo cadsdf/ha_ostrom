@@ -6,9 +6,6 @@
       "data": {
         "apiuser": "Username",
         "apipass": "Password"
-      },
-      "error": {
-        "base": "An error occurred. Please check your credentials"
       }
     },
     "select_contract": {
@@ -23,11 +20,11 @@
       "description": "Additional settings for sensors.",
       "data": {
         "use_past_sensor": "Show cost of last 48 hours as sensor"
-      },
-      "error": {
-        "base": "An error occurred. Please select a contract."
       }
     }
+  },
+  "error": {
+    "base": "An error occurred. Please check your credentials, contract selection or network connection."
   },
   "option": {
     "use_past_sensor": {
