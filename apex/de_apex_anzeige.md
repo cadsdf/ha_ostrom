@@ -14,6 +14,7 @@ now:
   label: Jetzt
 all_series_config:
   unit: cent
+  float_precision: 2
 header:
   show: true
   show_states: true
