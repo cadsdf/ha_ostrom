@@ -1,6 +1,5 @@
 {
   "title": "Ostrom API Integration",
-  "description": "Integration für Ostrom Strompreise und Verbrauchsdaten.",
   "step": {
     "user": {
       "title": "Zugangsdaten eingeben",
