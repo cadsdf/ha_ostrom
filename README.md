@@ -7,7 +7,7 @@ This custom component allows you to display and analyze current and historical e
 ## Version 4
 - **This version 4 was developed with help from Copilot – it was very helpful for me as a beginner in Home Assistant custom component development.**
 - **Compared to the old version, everything is different – the sensor ostrom.price was changed to sensor.ostrom_raw_forcast_data_1. If you were using the old version, you will unfortunately need to make many adjustments – sorry!**
-- **To display the data, you still need the apexchart-card (HACS): https://github.com/RomRider/apexcharts-card. Example configurations: https://github.com/melmager/ha_ostrom/tree/main/apex/de_apex_anzeige.md**
+- **To display the data, you still need the apexchart-card (HACS): https://github.com/RomRider/apexcharts-card. Example configurations:  https://github.com/melmager/ha_ostrom/blob/version4/apex/de_apex_anzeige.md **
 - **For consumption metering, you must use the HA-custom-component-energy-meter (HACS) – Home Assistant's built-in energy meter does not support dynamic tariffs! https://github.com/zeronounours/HA-custom-component-energy-meter**
 - **Description of the Ostrom API used: https://docs.ostrom-api.io/reference/introduction**
 
