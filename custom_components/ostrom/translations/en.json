@@ -4,7 +4,6 @@
   "step": {
     "user": {
       "title": "Enter Access Data",
-      "description": "Please enter your Ostrom API credentials.",
       "data": {
         "apiuser": "Username",
         "apipass": "Password"

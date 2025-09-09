@@ -63,22 +63,58 @@ class OstromCoordinator(DataUpdateCoordinator):
             "time": "",
             "past": "",
             "raw": "",
+            "last_update_failed": False,
+            "last_update_error": "",
         }
-        erg = await self.api_client.get_forecast_prices()
-        price_cent = erg["data"][0]["price"]              # Cent vom API
-        price_eur = price_cent / 100                      # Umrechnung in Euro
+        try:
+            erg = await self.api_client.get_forecast_prices()
+            price_cent = erg["data"][0]["price"]              # Cent vom API
+            price_eur = price_cent / 100                      # Umrechnung in Euro
 
-        ostromdaten["price"] = price_cent                 # Cent
-        ostromdaten["actual_price"] = price_eur           # Euro
-        ostromdaten["time"] = erg["data"][0]["date"]
-        ostromdaten["raw"] = erg
-        # Verbrauchsdaten holen, wenn gewünscht
-        #if self.want_consumption:
-        if self.use_past_sensor: 
-            ostromdaten.update(await self.api_client.get_past_price_consum())
-            #consum = await self.api_client.get_past_price_consum()
+            ostromdaten["price"] = price_cent                 # Cent
+            ostromdaten["actual_price"] = price_eur           # Euro
+            ostromdaten["time"] = erg["data"][0]["date"]
+            ostromdaten["raw"] = erg
+            # Verbrauchsdaten holen, wenn gewünscht
+            if self.use_past_sensor: 
+                ostromdaten.update(await self.api_client.get_past_price_consum())
+                #consum = await self.api_client.get_past_price_consum()
             #ostromdaten["consum"] = consum
-        return ostromdaten
+            # Letztes Update war erfolgreich:
+            ostromdaten["last_update_failed"] = False
+            ostromdaten["last_update_error"] = ""
+            return ostromdaten
+        except Exception as e:
+            import datetime   
+            # Logging und Retry-Hinweis
+            _LOGGER.error(f"Ostrom API update failed: {e}")
+            retry_minutes = 10
+            retry_time = (datetime.datetime.now() + timedelta(minutes=retry_minutes)).strftime("%H:%M")
+            _LOGGER.warning(f"Abfragefehler, Retry um {retry_time}")
+            # Retry auslösen
+            from homeassistant.helpers.event import async_call_later
+            async_call_later(self._hass, retry_minutes * 60, self._retry_update)
+
+            # Alte Daten behalten, aber Fehler-Flags setzen
+            if hasattr(self, "data") and self.data:
+                failed_data = dict(self.data)
+            else:
+                failed_data = {
+                    "cost_48h_past": None,
+                    "price": None,
+                    "actual_price": None,
+                    "time": None,
+                    "raw": None,
+                }
+            failed_data["last_update_failed"] = True
+            failed_data["last_update_error"] = str(e)
+            return failed_data
+
+    async def _retry_update(self, _):
+        import datetime
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _LOGGER.info(f"Führe Retry-Update aus (nach Fehler) um {now}")
+        await self.async_refresh()  
 
     async def async_setup_hourly_update(self):
         
@@ -93,5 +129,4 @@ class OstromCoordinator(DataUpdateCoordinator):
             minute=1,
             second=0,
         )
-        
         

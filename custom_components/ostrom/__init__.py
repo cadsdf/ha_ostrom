@@ -23,13 +23,13 @@ CONF_TOPIC = 'ostrom_login setup'
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up Ostrom from yaml (old version 3.0.0). wird nicht mehr ausgewertet !"""
-    if DOMAIN in config:
-        hass.data[DOMAIN] = await hass.async_add_executor_job(
-            ostrom_ha_setup, config[DOMAIN]["apiuser"], config[DOMAIN]["apipass"]
-        )
-    return True
+#async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+#    """Set up Ostrom from yaml (old version 3.0.0). wird nicht mehr ausgewertet !"""
+#    if DOMAIN in config:
+#        hass.data[DOMAIN] = await hass.async_add_executor_job(
+#            ostrom_ha_setup, config[DOMAIN]["apiuser"], config[DOMAIN]["apipass"]
+#        )
+#    return True
     
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = OstromCoordinator(hass, entry)

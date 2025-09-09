@@ -7,6 +7,27 @@ from .const import DOMAIN
 import logging
 _LOGGER = logging.getLogger(__name__)
 
+class OstromApiStatusSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        contract_id = getattr(coordinator, "contract_id", "unknown")
+        contract_index = getattr(coordinator, "contract_index", 1)
+        self._attr_name = f"Ostrom API Status ({contract_index})"
+        self._attr_unique_id = f"ostrom_api_status__{contract_id}"
+        self._attr_icon = "mdi:cloud-alert"
+
+    @property
+    def native_value(self):
+        failed = self.coordinator.data.get("last_update_failed", False)
+        return "Error" if failed else "OK"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "last_error": self.coordinator.data.get("last_update_error"),
+            "last_time": self.coordinator.data.get("time"),
+        }
+
 class Ostrom_Price_Now(CoordinatorEntity, SensorEntity):
     
     def __init__(self, coordinator):
@@ -43,7 +64,7 @@ class Ostrom_Price_Raw(CoordinatorEntity, SensorEntity):
         
     @property
     def native_value(self):
-        cent_price = self.coordinator.data.get("actual_price") * 100
+        cent_price = self.coordinator.data.get("price")
         return cent_price
         
     @property
@@ -115,6 +136,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         Ostrom_Price_Raw(coordinator),
         Ostrom_Price_Now(coordinator),
         LowestPriceNowBinary(coordinator),
+        OstromApiStatusSensor(coordinator), 
     ]
     if config_entry.options.get("use_past_sensor", False):
         entities.append(Cost_48hPast(coordinator))

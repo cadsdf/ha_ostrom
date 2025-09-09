@@ -101,3 +101,23 @@ yaxis:
 ```
 
 
+Anzeige für Stromkosten auf Stundenbasis für 72 Stunden
+(ohne Beispielbild)  
+
+```
+type: custom:apexcharts-card
+graph_span: 72h
+header:
+  show: true
+  title: Stromkosten Stundenbasis
+  show_states: true
+  colorize_states: true
+series:
+  - entity: sensor.cost_48h_past_1
+    type: column
+    stroke_width: 3
+    group_by:
+      duration: 1h
+
+```
+

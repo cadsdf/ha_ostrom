@@ -104,6 +104,11 @@ class OstromApi:
                     if response.status == 200:
                         erg = json.loads(text)
                         japex = {"average":0 , "low" : {"date":"","price":100.0}, "data":[] }
+                        if not erg['data']:
+                             _LOGGER.warning("Ostrom API: Keine Preisdaten geliefert, erg['data'] ist leer.")
+                             # Leeres Ergebnis zurückgeben
+                             japex = {"average": 0, "low": {"date": "", "price": 0.0}, "data": [{"price":0,"date":"2023-10-22T01:00:00.000Z"}]}
+                             return japex
                         for ix in erg['data']:
                             #gesamtpreis ermitteln
                             total_price = round(float(ix[tax]) + float(ix[kwprice]), 2)
