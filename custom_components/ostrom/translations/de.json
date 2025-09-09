@@ -24,15 +24,7 @@
     }
   },
   "error": {
-    "invalid_auth": "Die Zugangsdaten sind ungültig. Bitte prüfe Benutzername und Passwort.",
-    "cannot_connect": "Verbindung zur Ostrom API fehlgeschlagen. Bitte prüfe Netzwerk und Zugangsdaten.",
-    "unknown": "Ein unbekannter Fehler ist aufgetreten. Siehe Protokoll für Details.",
-    "invalid_contract": "Ungültiger Vertrag ausgewählt. Bitte erneut versuchen.",
-    "timeout": "Zeitüberschreitung bei der Kommunikation mit der Ostrom API.",
-    "api_auth": "Authentifizierung bei der Ostrom API fehlgeschlagen.",
-    "api_connection": "Fehler bei der Verbindung zur Ostrom API.",
-    "no_contracts_found": "Keine Verträge gefunden. Bitte prüfe die Zugangsdaten.",
-    "options_save": "Optionen konnten nicht gespeichert werden."
+    "base": "An error occurred. Please check your credentials, network or see logs for details."
   },
   "option": {
     "use_past_sensor": {
