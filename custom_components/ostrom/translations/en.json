@@ -6,6 +6,9 @@
       "data": {
         "apiuser": "Username",
         "apipass": "Password"
+      },
+      "error": {
+        "base": "An error occurred. Please check your credentials"
       }
     },
     "select_contract": {
@@ -20,17 +23,17 @@
       "description": "Additional settings for sensors.",
       "data": {
         "use_past_sensor": "Show cost of last 48 hours as sensor"
+      },
+      "error": {
+        "base": "An error occurred. Please select a contract."
       }
     }
-  },
-  "error": {
-     "base": "An error occurred. Please check your credentials, network or see logs for details."
   },
   "option": {
     "use_past_sensor": {
       "name": "Show cost of last 48 hours as sensor",
       "description": "Display a sensor for the cost of the last 48 hours."
-    }
+    }  
   },
   "success": {
     "config_entry_created": "Integration configured successfully.",
