@@ -5,7 +5,7 @@ Mit dieser Custom Component kannst du die aktuellen und historischen Strompreise
 ## Version 4
 - **diese version 4 wurde mit hilfe von copilot entwickelt - hat mir sehr geholfen als Anfängerin in Homassistant custom Component Entwickung
 - ** gegen der alten Version ist alles anders - sensor ostrom.price wurde zu sensor.ostrom_raw_forcast_data_1 - wenn alte version verwendet wird ist leider dann viel anpassung nötig - sorry 
-- ** für die Anzeige der Daten wird weiterhin apexchart-card benötigt (hacs) https://github.com/RomRider/apexcharts-card Beispiele hier: https://github.com/melmager/ha_ostrom/tree/main/apex/de_apex_anzeige.md
+- ** für die Anzeige der Daten wird weiterhin apexchart-card benötigt (hacs) https://github.com/RomRider/apexcharts-card Beispiele hier: https://github.com/melmager/ha_ostrom/blob/version4/apex/de_apex_anzeige.md
 - ** als Verbrauchszähler muss man den HA-custom-component-energy-meter (hacs) nutzen - der Energiemeter von Homeassistant kennt / kann keine dynamischen Tarife ! https://github.com/zeronounours/HA-custom-component-energy-meter
 - ** Beschreibung der verwendeten API von Ostrom : https://docs.ostrom-api.io/reference/introduction
 
