@@ -4,7 +4,6 @@
   "codeowners": ["@melmager"],
   "config_flow": true,
   "documentation": "https://github.com/melmager/ha_ostrom/",
-  "homeassistant": "2022.5.0",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/melmager/ha_ostrom/issues",
   "requirements": [
