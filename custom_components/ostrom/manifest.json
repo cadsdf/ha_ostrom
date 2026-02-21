@@ -1,13 +1,16 @@
 {
   "domain": "ostrom",
   "name": "ostrom api",
-  "codeowners": ["@melmager"],
+  "codeowners": [
+    "@cadsdf",
+    "@melmager"
+  ],
   "config_flow": true,
-  "documentation": "https://github.com/melmager/ha_ostrom/",
+  "documentation": "https://github.com/cadsdf/ha_ostrom/",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/melmager/ha_ostrom/issues",
+  "issue_tracker": "https://github.com/cadsdf/ha_ostrom/issues",
   "requirements": [
     "aiohttp"
   ],
-  "version": "0.4.1"
+  "version": "0.5.0"
 }
