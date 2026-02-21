@@ -1,73 +1,73 @@
-"""
-Ostrom Configuration mit vertragsauswahl
+"""Ostrom electricity provider Configuration with contract selection.
+
+This file is the entry point of Home Assistant custom component for Ostrom electricity provider.
+
+Note on linter import order:
+
+Imports are ordered as:
+1. future imports (compiler directives)
+2. standard library imports
+3. third party imports
+4. local application/library specific imports
+
+Each group is separated by a blank line.
+Both import and from statements within a group are ordered alphabetically.
+
+show issues with
+ruff check <file> --select I
+
+auto fix using
+ruff check <file> --select I --fix
 """
 
 from __future__ import annotations
 
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
 import logging
+from typing import TYPE_CHECKING
 
-from .coordinator import OstromCoordinator  # <-- Coordinator import
-from .const import DOMAIN
-
-PLATFORMS = [Platform.SENSOR]
-
-_LOGGER = logging.getLogger(__name__)
- 
-
-PLATFORMS = [Platform.SENSOR]
-
-CONF_TOPIC = 'ostrom_login setup'
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from .coordinator import OstromCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+PLATFORMS: tuple[str, ...] = ("sensor", "button")
 
-#async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-#    """Set up Ostrom from yaml (old version 3.0.0). wird nicht mehr ausgewertet !"""
-#    if DOMAIN in config:
-#        hass.data[DOMAIN] = await hass.async_add_executor_job(
-#            ostrom_ha_setup, config[DOMAIN]["apiuser"], config[DOMAIN]["apipass"]
-#        )
-#    return True
-    
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up from config."""
+    # Import lazily so standalone scripts can import package submodules
+    # without requiring Home Assistant to be installed.
+    from .coordinator import OstromCoordinator
+
     coordinator = OstromCoordinator(hass, entry)
+
+    _LOGGER.debug("Setting up Ostrom integration")
+
+    # Set up regular update tasks
     await coordinator.async_setup_hourly_update()
+
+    # Initial data fetch
     await coordinator.async_config_entry_first_refresh()
-    # Coordinator im Data-Dictionary speichern!
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    # Make the coordinator available to other parts of the integration
+    entry.runtime_data = coordinator
+
     # Forward to sensor platform
-    await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
+    await hass.config_entries.async_forward_entry_setups(entry, list(PLATFORMS))
+
+    _LOGGER.debug("Ostrom integration setup complete")
+
     return True
-    
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data.pop(DOMAIN, None)
-    return unload_ok    
-    
-async def async_migrate_entry(hass, entry):
-    """Migrate old entry (ConfigEntry) to new version."""
-    # Beispiel: Version 1 → 2
-    old_version = entry.version
-    _LOGGER.info("Migrating from version %s", old_version)
+    """Unload a config entry.
 
-    # Deine Migrationslogik hier (meist: Datenstruktur anpassen)
-    # Beispiel: Wenn du neue Felder brauchst, setze sie auf Defaults
-    if old_version < 5:
-        new_data = {**entry.data}
-        # z.B. neues Feld einfügen:
-        # new_data["new_field"] = "default_value"
-        entry.version = 5
-        hass.config_entries.async_update_entry(entry, data=new_data)
+    Note: runtime_data cleanup is automatic, no need to manually clean hass.data
+    """
 
-    _LOGGER.info("Migration to version %s successful", entry.version)
-    return True
-    
-    
+    _LOGGER.debug("Unloading Ostrom integration")
 
-
+    # Unload platforms (sensors)
+    return await hass.config_entries.async_unload_platforms(entry, list(PLATFORMS))

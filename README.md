@@ -4,6 +4,112 @@ This custom component allows you to display and analyze current and historical e
 
 **[Deutsche Version/Readme hier](DE-README.md)**
 
+## Version 5
+
+Refactored codebase with typed data models and additional sensors.
+
+### Changes
+
+- Refactored integration architecture into typed modules:
+  - `ostrom_api_client.py` for HTTP/auth
+  - `ostrom_provider.py` for provider logic
+  - `ostrom_data.py` for typed data models
+
+- Expanded entity model:
+  - dedicated sensors for current price parts, monthly fees, and minimum-price windows
+  - dedicated timestamp sensors for all minimum-price targets
+  - manual refresh button `button.ostrom_refresh_data`
+  - integration entities are now grouped under a single Home Assistant device for a consolidated entity overview
+
+- Added Ruff linting workflow for local development
+
+- Added root-level development scripts for local API access and visualization:
+  - `ostrom.py` for direct data retrieval / testing
+  - `ostrom_visualization.py` for consumption and spot-price plots with `matplotlib`
+
+- Implemented with GPT-5.3-Codex pair programming support
+
+
+### Entities
+
+#### Sensors
+- `sensor.ostrom_status`
+- `sensor.ostrom_current_electricity_price`
+- `sensor.ostrom_current_net_energy_price`
+- `sensor.ostrom_current_taxes_and_levies`
+- `sensor.ostrom_forecast`
+- `sensor.ostrom_monthly_base_fee`
+- `sensor.ostrom_monthly_grid_fee`
+- `sensor.ostrom_monthly_fees`
+- `sensor.ostrom_minimum_price_today`
+- `sensor.ostrom_minimum_price_upcoming_today`
+- `sensor.ostrom_minimum_price_tomorrow`
+- `sensor.ostrom_minimum_price_all_available`
+- `sensor.ostrom_minimum_price_today_time`
+- `sensor.ostrom_minimum_price_upcoming_today_time`
+- `sensor.ostrom_minimum_price_tomorrow_time`
+- `sensor.ostrom_minimum_price_all_available_time`
+
+#### Binary Sensors
+- `binary_sensor.ostrom_lowest_price_is_now`
+
+#### Buttons
+- `button.ostrom_refresh_data`
+
+Note: exact entity IDs can vary if names are customized in Home Assistant.
+
+### Forecast Attributes
+
+`sensor.ostrom_forecast` exposes chart-ready attributes:
+
+- `forecast`: list of `{datetime, value}` entries
+- `data`: compatibility list of `{date, price}` entries (for cards expecting legacy keys)
+- `minimum_price_today`
+- `minimum_price_upcoming_today`
+- `minimum_price_tomorrow`
+- `minimum_price_all_available`
+- `lowest_price`
+- `lowest_price_time`
+- `forecast_count`
+- `forecast_first`
+- `forecast_last`
+- `forecast_future_count`
+
+### ApexCharts Example
+
+```yaml
+type: custom:apexcharts-card
+graph_span: 48h
+span:
+  start: hour
+  offset: "-12h"
+series:
+  - entity: sensor.ostrom_forecast
+    name: Ostrom Forecast
+    data_generator: |
+      return (entity.attributes.data || []).map((row) => {
+        return [new Date(row.date).getTime(), row.price];
+      });
+```
+
+### Precision / Units
+
+- EUR/kWh sensors use 4 decimals (suggested display precision)
+- EUR monthly fee sensors use 2 decimals (suggested display precision)
+
+### Development
+
+#### Local scripts
+- `ostrom.py`: local API/testing script
+- `ostrom_visualization.py`: visualization helper script
+- `tests/`: integration-focused tests
+
+#### Lint / tests
+```bash
+ruff check custom_components/ostrom tests
+pytest -q
+```
+
 ## Version 4
 - **This version 4 was developed with help from Copilot – it was very helpful for me as a beginner in Home Assistant custom component development.**
 - **Compared to the old version, everything is different – the sensor ostrom.price was changed to sensor.ostrom_raw_forcast_data_1. If you were using the old version, you will unfortunately need to make many adjustments – sorry!**
