@@ -1,8 +1,7 @@
 """Constants for Ostrom electricity provider integration."""
 
-from homeassistant.const import UnitOfEnergy
-
 DOMAIN: str = "ostrom"
+SERVICE_REFRESH_DATA: str = "refresh_data"
 DEFAULT_SCAN_INTERVAL: int = 60
 
 # Icons
@@ -30,4 +29,4 @@ KEY_ZIP_CODE: str = "zip"
 
 # Unit definitions
 # Does not seem to exist in homeassistant.const
-UNIT_EURO_PER_KWH: str = f"EUR/{UnitOfEnergy.KILO_WATT_HOUR}"
+UNIT_EURO_PER_KWH: str = "EUR/kWh"

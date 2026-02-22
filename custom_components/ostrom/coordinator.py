@@ -1,6 +1,7 @@
 """Update coordinator for Ostrom data."""
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import NoReturn
 
@@ -8,7 +9,12 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.event import async_call_later, async_track_time_change
+from homeassistant.util import dt as dt_util
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_time_change,
+    async_track_time_interval,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, KEY_CONTRACT_ID, KEY_PASSWORD, KEY_USER, KEY_ZIP_CODE
@@ -55,6 +61,7 @@ class OstromCoordinator(DataUpdateCoordinator):
     """Coordinator for Ostrom data."""
 
     FAIL_RETRY_INTERVAL_MINUTES: int = 10
+    DEBUG_UPDATE_INTERVAL_MINUTES: int = 5
 
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize coordinator."""
@@ -67,6 +74,8 @@ class OstromCoordinator(DataUpdateCoordinator):
         self.contract_id: str = config_entry.data.get(KEY_CONTRACT_ID)
 
         # Initialize Ostrom API client
+        configured_tz = dt_util.get_time_zone(hass.config.time_zone) or UTC
+
         self.provider = OstromProvider(
             user=self.user,
             password=self.password,
@@ -74,10 +83,13 @@ class OstromCoordinator(DataUpdateCoordinator):
             endpoint_data=None,
             zip_code=self.zip_code,
             contract_id=self.contract_id,
+            time_zone=configured_tz,
         )
 
         self.data: OstromConsumerData = OstromConsumerData()
         self._provider_initialized: bool = False
+        self._cancel_hourly_update: Callable[[], None] | None = None
+        self._cancel_debug_update: Callable[[], None] | None = None
 
         # Init base DataUpdateCoordinator and pass update method
         super().__init__(
@@ -215,18 +227,53 @@ class OstromCoordinator(DataUpdateCoordinator):
 
         return price.date.isoformat()
 
-    async def async_setup_hourly_update(self):
+    async def async_setup_hourly_update(self) -> None:
         """Set up hourly update at minute 1."""
+
+        if self._cancel_hourly_update is not None:
+            return
 
         async def hourly_update(_):
             LOGGER.debug("Triggering hourly update at minute 1")
-
-            await self._async_update_data()
+            await self.async_request_refresh()
 
         # Schedule update at minute 1 every hour
-        async_track_time_change(
+        self._cancel_hourly_update = async_track_time_change(
             self._hass,
             hourly_update,
             minute=1,
             second=0,
         )
+
+        async def debug_update(_):
+            # Always register the timer so toggling logger level at runtime works.
+            if not LOGGER.isEnabledFor(logging.DEBUG):
+                return
+
+            LOGGER.debug(
+                "Triggering debug interval update every %s minutes",
+                self.DEBUG_UPDATE_INTERVAL_MINUTES,
+            )
+            await self.async_request_refresh()
+
+        self._cancel_debug_update = async_track_time_interval(
+            self._hass,
+            debug_update,
+            timedelta(minutes=self.DEBUG_UPDATE_INTERVAL_MINUTES),
+        )
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug(
+                "Debug scheduler enabled: update every %s minutes",
+                self.DEBUG_UPDATE_INTERVAL_MINUTES,
+            )
+
+    async def async_shutdown(self) -> None:
+        """Clean up coordinator callbacks."""
+        if self._cancel_debug_update is not None:
+            self._cancel_debug_update()
+            self._cancel_debug_update = None
+
+        if self._cancel_hourly_update is not None:
+            self._cancel_hourly_update()
+            self._cancel_hourly_update = None
