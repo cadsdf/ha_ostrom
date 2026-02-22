@@ -3,17 +3,17 @@
     "step": {
       "user": {
         "title": "Ostrom API Credentials",
-        "description": "Create API credentials at developer.ostrom-api.io/auth/login{error_detail}",
+        "description": "Please create API credentials at developer.ostrom-api.io if you haven't done so.",
         "data": {
-          "user": "Ostrom Username",
-          "password": "Ostrom Password"
+          "user": "Username",
+          "password": "Password"
         }
       },
       "select_contract": {
         "title": "Ostrom Contract Selection",
-        "description": "Select the electricity contract that should be used by this integration.",
+        "description": "Please select the electricity contract that should be used by this integration.",
         "data": {
-          "contract": "Select Ostrom contract to use"
+          "contract": "Ostrom contract to use"
         }
       }
     },

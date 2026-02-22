@@ -1,7 +1,7 @@
 """Ostrom electricity provider API integration."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from .ostrom_api_client import OstromAPIClient
 from .ostrom_data import (
@@ -28,6 +28,7 @@ class OstromProvider:
         endpoint_data: str | None = OstromAPIClient.ENDPOINT_PRODUCTION_DATA,
         zip_code: str | None = None,
         contract_id: str | None = None,
+        time_zone: tzinfo = UTC,
     ) -> None:
         """Initialize."""
         self.expire = datetime.now(tz=UTC)
@@ -41,6 +42,7 @@ class OstromProvider:
 
         self.zip_code: str | None = zip_code
         self.contract_id: str | None = contract_id
+        self.time_zone: tzinfo = time_zone
         self.consumer_info: OstromCustomerInfo | None = None
         self.consumer_data: OstromConsumerData | None = None
 
@@ -270,7 +272,9 @@ class OstromProvider:
             return None
 
         return OstromConsumerData.from_data(
-            consumptions=consumptions, spot_prices=spot_prices
+            consumptions=consumptions,
+            spot_prices=spot_prices,
+            time_zone=self.time_zone,
         )
 
 

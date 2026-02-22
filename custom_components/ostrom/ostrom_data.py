@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any, TypeVar
 
 T = TypeVar("T", "OstromSpotPrice", "OstromConsumption")
@@ -489,7 +489,10 @@ class OstromConsumerData:
 
     @classmethod
     def from_data(
-        cls, consumptions: list[OstromConsumption], spot_prices: list[OstromSpotPrice]
+        cls,
+        consumptions: list[OstromConsumption],
+        spot_prices: list[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromConsumerData | None:
         """Build consumer data from parsed consumption and spot price lists."""
         spot_price: OstromSpotPrice | None = cls.find_current_item(spot_prices)
@@ -498,15 +501,21 @@ class OstromConsumerData:
             return None
 
         minimum_spot_price_today: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_current_day(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_current_day(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_today_from_now: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_current_day_from_now(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_current_day_from_now(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_tomorrow: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_tomorrow(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_tomorrow(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_all_available: OstromSpotPrice | None = (
@@ -618,12 +627,15 @@ class OstromConsumerData:
 
         Returns:
             The spot price entry with the lowest gross price within the specified time range, or None if not found.
+
+        Notes:
+            `time_end` is treated as exclusive, i.e. the checked interval is [time_start, time_end).
         """
         min_price: float | None = None
         min_price_entry: OstromSpotPrice | None = None
 
         for entry in data:
-            if entry.date < time_start or entry.date > time_end:
+            if entry.date < time_start or entry.date >= time_end:
                 continue
 
             price_with_tax_gross_euro_per_kwh: float = (
@@ -659,6 +671,7 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_current_day(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
         """Find the spot price entry with the lowest gross price for the current day.
 
@@ -669,8 +682,8 @@ class OstromConsumerData:
             The spot price entry with the lowest gross price for the current day, or None if not found.
         """
 
-        now = datetime.now(tz=UTC)
-        time_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
+        now = datetime.now(tz=time_zone)
+        time_start = datetime(now.year, now.month, now.day, tzinfo=time_zone)
         time_end = time_start + timedelta(days=1)
 
         return OstromConsumerData.find_minimum_spot_price_time_range(
@@ -680,6 +693,7 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_current_day_from_now(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
         """Find the spot price entry with the lowest gross price for the current day starting from now.
 
@@ -690,9 +704,10 @@ class OstromConsumerData:
             The spot price entry with the lowest gross price for the current day starting from now, or None if not found.
         """
 
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=time_zone)
         time_start = now
-        time_end = datetime(now.year, now.month, now.day, tzinfo=UTC) + timedelta(
+
+        time_end = datetime(now.year, now.month, now.day, tzinfo=time_zone) + timedelta(
             days=1
         )
 
@@ -703,12 +718,15 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_tomorrow(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
         """Find the minimum spot price for tomorrow."""
-        now = datetime.now(tz=UTC)
-        tomorrow_start = datetime(now.year, now.month, now.day, tzinfo=UTC) + timedelta(
-            days=1
-        )
+        now = datetime.now(tz=time_zone)
+
+        tomorrow_start = datetime(
+            now.year, now.month, now.day, tzinfo=time_zone
+        ) + timedelta(days=1)
+
         tomorrow_end = tomorrow_start + timedelta(days=1)
 
         return OstromConsumerData.find_minimum_spot_price_time_range(

@@ -69,5 +69,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.debug("Unloading Ostrom integration")
 
-    # Unload platforms (sensors)
-    return await hass.config_entries.async_unload_platforms(entry, list(PLATFORMS))
+    # Unload platforms
+    unloaded = await hass.config_entries.async_unload_platforms(entry, list(PLATFORMS))
+
+    if unloaded:
+        coordinator: OstromCoordinator = entry.runtime_data
+        await coordinator.async_shutdown()
+
+    return unloaded
