@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CURRENCY_EURO
+from homeassistant.const import CURRENCY_EURO, UnitOfEnergy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -313,6 +313,166 @@ class OstromMonthlyFeesSensor(OstromBaseEntity, SensorEntity):
         )
 
 
+class OstromConsumptionYesterdaySensor(OstromBaseEntity, SensorEntity):
+    """Total consumption for yesterday based on hourly consumption data."""
+
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the yesterday consumption sensor."""
+        super().__init__(coordinator)
+
+        self._set_identity("consumption_yesterday", "Consumption Yesterday")
+        self._attr_icon = "mdi:flash"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the total consumption for yesterday in kWh."""
+        return _round2(self.data.consumption_yesterday_kwh)
+
+
+class OstromCostYesterdaySensor(OstromBaseEntity, SensorEntity):
+    """Total electricity cost for yesterday based on hourly data matching."""
+
+    _attr_native_unit_of_measurement = CURRENCY_EURO
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the yesterday cost sensor."""
+        super().__init__(coordinator)
+
+        self._set_identity("cost_yesterday", "Cost Yesterday")
+        self._attr_icon = "mdi:cash"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the total electricity cost for yesterday in EUR."""
+        return _round2(self.data.cost_yesterday_euro)
+
+
+class OstromConsumptionThisMonthSensor(OstromBaseEntity, SensorEntity):
+    """Total consumption for the current month based on monthly consumption data."""
+
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the month-to-date consumption sensor."""
+        super().__init__(coordinator)
+        self._set_identity("consumption_this_month", "Consumption This Month")
+        self._attr_icon = "mdi:calendar-month"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the total consumption for the current month in kWh."""
+        return _round2(self.data.consumption_this_month_kwh)
+
+
+class OstromConsumptionThisYearSensor(OstromBaseEntity, SensorEntity):
+    """Total consumption for the current calendar year based on monthly data."""
+
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the year-to-date consumption sensor."""
+        super().__init__(coordinator)
+        self._set_identity("consumption_this_year", "Consumption This Year")
+        self._attr_icon = "mdi:calendar-range"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the total consumption for the current calendar year in kWh."""
+        return _round2(self.data.consumption_this_year_kwh)
+
+
+class OstromConsumptionThisContractYearSensor(OstromBaseEntity, SensorEntity):
+    """Total consumption for the active contract year based on monthly data."""
+
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the contract-year consumption sensor."""
+        super().__init__(coordinator)
+        self._set_identity(
+            "consumption_this_contract_year",
+            "Consumption This Contract Year",
+        )
+        self._attr_icon = "mdi:calendar-sync"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the total consumption for the active contract year in kWh."""
+        return _round2(self.data.consumption_this_contract_year_kwh)
+
+
+class OstromContractStartTimeSensor(OstromBaseEntity, SensorEntity):
+    """Contract start date as a timestamp sensor."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the contract start timestamp sensor."""
+        super().__init__(coordinator)
+        self._set_identity("contract_start", "Contract Start")
+        self._attr_icon = "mdi:calendar-start"
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the contract start timestamp."""
+        return self.data.contract_start_date
+
+
+class OstromCurrentMonthlyDepositAmountSensor(OstromBaseEntity, SensorEntity):
+    """Current monthly deposit amount from the selected contract."""
+
+    _attr_native_unit_of_measurement = CURRENCY_EURO
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the monthly deposit amount sensor."""
+        super().__init__(coordinator)
+        self._set_identity(
+            "current_monthly_deposit_amount",
+            "Current Monthly Deposit Amount",
+        )
+        self._attr_icon = "mdi:bank-transfer"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the configured monthly deposit amount in EUR."""
+        return _round2(self.data.current_monthly_deposit_amount_euro)
+
+
+class OstromContractProductCodeSensor(OstromBaseEntity, SensorEntity):
+    """Selected contract product code."""
+
+    def __init__(self, coordinator: OstromCoordinator) -> None:
+        """Initialize the contract product code sensor."""
+        super().__init__(coordinator)
+        self._set_identity("contract_product_code", "Contract Product Code")
+        self._attr_icon = "mdi:tag-text"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the selected contract product code."""
+        return self.data.contract_product_code
+
+
 class OstromMinimumPriceSensor(OstromBaseEntity, SensorEntity):
     """Generic minimum-price sensor."""
 
@@ -409,6 +569,14 @@ async def async_setup_entry(
         OstromMonthlyBaseFeeSensor(coordinator),
         OstromMonthlyGridFeeSensor(coordinator),
         OstromMonthlyFeesSensor(coordinator),
+        OstromConsumptionYesterdaySensor(coordinator),
+        OstromCostYesterdaySensor(coordinator),
+        OstromConsumptionThisMonthSensor(coordinator),
+        OstromConsumptionThisYearSensor(coordinator),
+        OstromConsumptionThisContractYearSensor(coordinator),
+        OstromContractStartTimeSensor(coordinator),
+        OstromCurrentMonthlyDepositAmountSensor(coordinator),
+        OstromContractProductCodeSensor(coordinator),
         OstromMinimumPriceSensor(
             coordinator,
             sensor="minimum_price_today",

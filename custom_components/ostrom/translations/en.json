@@ -3,23 +3,24 @@
     "step": {
       "user": {
         "title": "Ostrom API Credentials",
-        "description": "Create API credentials at developer.ostrom-api.io/auth/login",
+        "description": "Please create API credentials at developer.ostrom-api.io if you haven't done so. Last error: {error_detail}",
         "data": {
-          "user": "Ostrom Username",
-          "password": "Ostrom Password"
+          "user": "Username",
+          "password": "Password"
         }
       },
       "select_contract": {
-        "title": "Select Contract",
-        "description": "Choose the contract to use for this integration instance.",
+        "title": "Ostrom Contract Selection",
+        "description": "Please select the electricity contract that should be used by this integration.",
         "data": {
-          "contract_id": "Contract"
+          "contract": "Ostrom contract to use"
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect",
       "invalid_auth": "Invalid authentication",
+      "rate_limited": "Rate limit reached (HTTP 429). Please wait a few minutes and try again.",
       "no_contracts": "No contracts found for this account",
       "unknown": "Unexpected error"
     },
@@ -57,6 +58,30 @@
       },
       "monthly_fees": {
         "name": "Monthly Fees"
+      },
+      "consumption_yesterday": {
+        "name": "Consumption Yesterday"
+      },
+      "cost_yesterday": {
+        "name": "Cost Yesterday"
+      },
+      "consumption_this_month": {
+        "name": "Consumption This Month"
+      },
+      "consumption_this_year": {
+        "name": "Consumption This Year"
+      },
+      "consumption_this_contract_year": {
+        "name": "Consumption This Contract Year"
+      },
+      "contract_start": {
+        "name": "Contract Start"
+      },
+      "current_monthly_deposit_amount": {
+        "name": "Current Monthly Deposit Amount"
+      },
+      "contract_product_code": {
+        "name": "Contract Type"
       },
       "minimum_price_today": {
         "name": "Minimum Price Today"

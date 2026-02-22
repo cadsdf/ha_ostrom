@@ -5,9 +5,10 @@ Parse raw data received from Ostrom API, check for integrity, and map to common 
 
 from __future__ import annotations
 
+from calendar import monthrange
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any, TypeVar
 
 T = TypeVar("T", "OstromSpotPrice", "OstromConsumption")
@@ -451,6 +452,16 @@ class OstromConsumerData:
     spot_price_minimum_tomorrow: OstromSpotPrice | None = None
     spot_price_minimum_all_available: OstromSpotPrice | None = None
 
+    consumption_yesterday_kwh: float | None = None
+    cost_yesterday_euro: float | None = None
+    consumption_this_month_kwh: float | None = None
+    consumption_this_year_kwh: float | None = None
+    consumption_this_contract_year_kwh: float | None = None
+
+    contract_start_date: datetime | None = None
+    current_monthly_deposit_amount_euro: float | None = None
+    contract_product_code: str | None = None
+
     minimum_is_current_price: bool = False
 
     spot_prices: list[OstromSpotPrice] | None = None
@@ -489,7 +500,14 @@ class OstromConsumerData:
 
     @classmethod
     def from_data(
-        cls, consumptions: list[OstromConsumption], spot_prices: list[OstromSpotPrice]
+        cls,
+        consumptions: list[OstromConsumption],
+        spot_prices: list[OstromSpotPrice],
+        monthly_consumptions: list[OstromConsumption] | None = None,
+        contract_start_date: datetime | None = None,
+        current_monthly_deposit_amount_euro: float | None = None,
+        contract_product_code: str | None = None,
+        time_zone: tzinfo = UTC,
     ) -> OstromConsumerData | None:
         """Build consumer data from parsed consumption and spot price lists."""
         spot_price: OstromSpotPrice | None = cls.find_current_item(spot_prices)
@@ -498,15 +516,21 @@ class OstromConsumerData:
             return None
 
         minimum_spot_price_today: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_current_day(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_current_day(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_today_from_now: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_current_day_from_now(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_current_day_from_now(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_tomorrow: OstromSpotPrice | None = (
-            OstromConsumerData.find_minimum_spot_price_tomorrow(spot_prices)
+            OstromConsumerData.find_minimum_spot_price_tomorrow(
+                spot_prices, time_zone=time_zone
+            )
         )
 
         minimum_spot_price_all_available: OstromSpotPrice | None = (
@@ -514,6 +538,80 @@ class OstromConsumerData:
         )
 
         minimums_available: bool = minimum_spot_price_today_from_now is not None
+
+        yesterday_start, yesterday_end = OstromConsumerData.get_yesterday_time_range(
+            time_zone=time_zone
+        )
+
+        consumption_yesterday_kwh = OstromConsumerData.calculate_total_consumption_kwh(
+            consumptions,
+            time_start=yesterday_start,
+            time_end=yesterday_end,
+        )
+
+        cost_yesterday_euro = OstromConsumerData.calculate_total_cost_euro(
+            consumptions,
+            spot_prices,
+            time_start=yesterday_start,
+            time_end=yesterday_end,
+        )
+
+        month_start, month_end = OstromConsumerData.get_current_month_time_range(
+            time_zone=time_zone
+        )
+
+        year_start, year_end = OstromConsumerData.get_current_year_time_range(
+            time_zone=time_zone
+        )
+
+        contract_year_start, contract_year_end = (
+            OstromConsumerData.get_current_contract_year_time_range(
+                contract_start_date,
+                time_zone=time_zone,
+            )
+            if contract_start_date is not None
+            else (None, None)
+        )
+
+        if monthly_consumptions is not None:
+            consumption_this_month_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=month_start,
+                    time_end=month_end,
+                )
+            )
+
+            consumption_this_year_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=year_start,
+                    time_end=year_end,
+                )
+            )
+
+            consumption_this_contract_year_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=contract_year_start,
+                    time_end=contract_year_end,
+                )
+                if contract_year_start is not None and contract_year_end is not None
+                else None
+            )
+        else:
+            consumption_this_month_kwh = None
+            consumption_this_year_kwh = None
+            consumption_this_contract_year_kwh = None
+
+        normalized_contract_start_date = None
+
+        if contract_start_date is not None:
+            normalized_contract_start_date = (
+                contract_start_date.astimezone(time_zone)
+                if contract_start_date.tzinfo is not None
+                else contract_start_date.replace(tzinfo=time_zone)
+            )
 
         minimum_is_current_price: bool = (
             minimums_available and spot_price == minimum_spot_price_today_from_now
@@ -526,10 +624,197 @@ class OstromConsumerData:
             spot_price_minimum_remaining_today=minimum_spot_price_today_from_now,
             spot_price_minimum_tomorrow=minimum_spot_price_tomorrow,
             spot_price_minimum_all_available=minimum_spot_price_all_available,
+            consumption_yesterday_kwh=consumption_yesterday_kwh,
+            cost_yesterday_euro=cost_yesterday_euro,
+            consumption_this_month_kwh=consumption_this_month_kwh,
+            consumption_this_year_kwh=consumption_this_year_kwh,
+            consumption_this_contract_year_kwh=consumption_this_contract_year_kwh,
+            contract_start_date=normalized_contract_start_date,
+            current_monthly_deposit_amount_euro=current_monthly_deposit_amount_euro,
+            contract_product_code=contract_product_code,
             minimum_is_current_price=minimum_is_current_price,
             spot_prices=spot_prices,
             consumptions=consumptions,
         )
+
+    @staticmethod
+    def calculate_total_consumption_kwh(
+        consumptions: Sequence[OstromConsumption],
+        time_start: datetime,
+        time_end: datetime,
+    ) -> float | None:
+        """Calculate total consumption in kWh within a given time range."""
+        if not consumptions:
+            return None
+
+        total = 0.0
+        matched_any = False
+
+        for item in consumptions:
+            if time_start <= item.date < time_end:
+                matched_any = True
+                total += item.consumption_kwh
+
+        if not matched_any:
+            return None
+
+        return total
+
+    @staticmethod
+    def calculate_total_cost_euro(
+        consumptions: Sequence[OstromConsumption],
+        spot_prices: Sequence[OstromSpotPrice],
+        time_start: datetime,
+        time_end: datetime,
+    ) -> float | None:
+        """Calculate total cost in EUR within a given time range by matching hourly timestamps."""
+        if not consumptions or not spot_prices:
+            return None
+
+        spot_prices_by_date = {item.date: item for item in spot_prices}
+        total_cost = 0.0
+        matched_any = False
+
+        for consumption in consumptions:
+            if consumption.date < time_start or consumption.date >= time_end:
+                continue
+
+            spot_price = spot_prices_by_date.get(consumption.date)
+
+            if spot_price is None:
+                continue
+
+            matched_any = True
+
+            total_cost += (
+                consumption.consumption_kwh
+                * OstromConsumerData.gross_price_with_tax_euro_per_kwh(spot_price)
+            )
+
+        if not matched_any:
+            return None
+
+        return total_cost
+
+    @staticmethod
+    def get_current_month_time_range(
+        time_zone: tzinfo = UTC,
+        now: datetime | None = None,
+    ) -> tuple[datetime, datetime]:
+        """Return the current month interval [start, end) in the given timezone."""
+
+        current = (
+            now.astimezone(time_zone) if now is not None else datetime.now(tz=time_zone)
+        )
+
+        month_start = datetime(current.year, current.month, 1, tzinfo=time_zone)
+
+        if current.month == 12:
+            month_end = datetime(current.year + 1, 1, 1, tzinfo=time_zone)
+        else:
+            month_end = datetime(current.year, current.month + 1, 1, tzinfo=time_zone)
+
+        return month_start, month_end
+
+    @staticmethod
+    def get_current_year_start(
+        time_zone: tzinfo = UTC,
+        now: datetime | None = None,
+    ) -> datetime:
+        """Return the start of the current calendar year in the given timezone."""
+
+        current = (
+            now.astimezone(time_zone) if now is not None else datetime.now(tz=time_zone)
+        )
+
+        return datetime(current.year, 1, 1, tzinfo=time_zone)
+
+    @staticmethod
+    def get_current_year_time_range(
+        time_zone: tzinfo = UTC,
+        now: datetime | None = None,
+    ) -> tuple[datetime, datetime]:
+        """Return the current year interval [start, end) in the given timezone."""
+
+        year_start = OstromConsumerData.get_current_year_start(
+            time_zone=time_zone, now=now
+        )
+
+        year_end = datetime(year_start.year + 1, 1, 1, tzinfo=time_zone)
+
+        return year_start, year_end
+
+    @staticmethod
+    def get_current_contract_year_start(
+        contract_start_date: datetime,
+        time_zone: tzinfo = UTC,
+        now: datetime | None = None,
+    ) -> datetime:
+        """Return the start of the active contract-year cycle in the given timezone."""
+        current = (
+            now.astimezone(time_zone) if now is not None else datetime.now(tz=time_zone)
+        )
+
+        contract_local = (
+            contract_start_date.astimezone(time_zone)
+            if contract_start_date.tzinfo is not None
+            else contract_start_date.replace(tzinfo=time_zone)
+        )
+
+        def _anniversary(target_year: int) -> datetime:
+            day = min(
+                contract_local.day,
+                monthrange(target_year, contract_local.month)[1],
+            )
+
+            return datetime(
+                target_year,
+                contract_local.month,
+                day,
+                tzinfo=time_zone,
+            )
+
+        year = current.year
+        anniversary = _anniversary(year)
+
+        if current < anniversary:
+            anniversary = _anniversary(year - 1)
+
+        return anniversary
+
+    @staticmethod
+    def get_current_contract_year_time_range(
+        contract_start_date: datetime,
+        time_zone: tzinfo = UTC,
+        now: datetime | None = None,
+    ) -> tuple[datetime, datetime]:
+        """Return the active contract-year interval [start, end) in the given timezone."""
+
+        start = OstromConsumerData.get_current_contract_year_start(
+            contract_start_date,
+            time_zone=time_zone,
+            now=now,
+        )
+
+        target_year = start.year + 1
+        end_day = min(start.day, monthrange(target_year, start.month)[1])
+        end = datetime(target_year, start.month, end_day, tzinfo=time_zone)
+
+        return start, end
+
+    @staticmethod
+    def get_yesterday_time_range(
+        time_zone: tzinfo = UTC,
+    ) -> tuple[datetime, datetime]:
+        """Return yesterday's start and end datetimes in the given timezone.
+
+        The returned interval is [start, end), where end is today's midnight.
+        """
+        now = datetime.now(tz=time_zone)
+        today_start = datetime(now.year, now.month, now.day, tzinfo=time_zone)
+        yesterday_start = today_start - timedelta(days=1)
+
+        return yesterday_start, today_start
 
     @staticmethod
     def find_closest_item_by_time(data: Sequence[T], target_time: datetime) -> T | None:
@@ -589,18 +874,30 @@ class OstromConsumerData:
 
     @staticmethod
     def find_current_item(data: Sequence[T]) -> T | None:
-        """Find the spot price or consumption entry that corresponds to the current time.
+        """Find the entry for the current interval.
 
-        Args:
-            data: A list of OstromSpotPrice or OstromConsumption objects to search through.
-
-        Returns:
-            The spot price or consumption entry that matches the current time, or None if not found.
-
+        For interval-based data (hourly spot prices / consumptions), this returns the
+        latest entry whose timestamp is not in the future. Falling back to the closest
+        item is only used when all entries lie in the future.
         """
+        if not data:
+            return None
+
+        now = datetime.now(tz=UTC)
+        current_item: T | None = None
+
+        for item in data:
+            if item.date <= now:
+                current_item = item
+            else:
+                break
+
+        if current_item is not None:
+            return current_item
+
         index = OstromConsumerData.find_index_data_time_now(data)
 
-        if index is not None and index >= 0 and index < len(data):
+        if index is not None and 0 <= index < len(data):
             return data[index]
 
         return None
@@ -618,12 +915,15 @@ class OstromConsumerData:
 
         Returns:
             The spot price entry with the lowest gross price within the specified time range, or None if not found.
+
+        Notes:
+            `time_end` is treated as exclusive, i.e. the checked interval is [time_start, time_end).
         """
         min_price: float | None = None
         min_price_entry: OstromSpotPrice | None = None
 
         for entry in data:
-            if entry.date < time_start or entry.date > time_end:
+            if entry.date < time_start or entry.date >= time_end:
                 continue
 
             price_with_tax_gross_euro_per_kwh: float = (
@@ -659,6 +959,7 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_current_day(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
         """Find the spot price entry with the lowest gross price for the current day.
 
@@ -669,8 +970,8 @@ class OstromConsumerData:
             The spot price entry with the lowest gross price for the current day, or None if not found.
         """
 
-        now = datetime.now(tz=UTC)
-        time_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
+        now = datetime.now(tz=time_zone)
+        time_start = datetime(now.year, now.month, now.day, tzinfo=time_zone)
         time_end = time_start + timedelta(days=1)
 
         return OstromConsumerData.find_minimum_spot_price_time_range(
@@ -680,19 +981,21 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_current_day_from_now(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
-        """Find the spot price entry with the lowest gross price for the current day starting from now.
+        """Find the lowest gross price from the current hour through the end of today.
 
-        Args:
-            data: A list of OstromSpotPrice objects to search through.
-
-        Returns:
-            The spot price entry with the lowest gross price for the current day starting from now, or None if not found.
+        The current hourly bucket is included, so a minimum that is active right now
+        can correctly be reported as the current minimum.
         """
+        if not data:
+            return None
 
-        now = datetime.now(tz=UTC)
-        time_start = now
-        time_end = datetime(now.year, now.month, now.day, tzinfo=UTC) + timedelta(
+        now = datetime.now(tz=time_zone)
+        current_item = OstromConsumerData.find_current_item(data)
+        time_start = current_item.date if current_item is not None else now
+
+        time_end = datetime(now.year, now.month, now.day, tzinfo=time_zone) + timedelta(
             days=1
         )
 
@@ -703,12 +1006,15 @@ class OstromConsumerData:
     @staticmethod
     def find_minimum_spot_price_tomorrow(
         data: Sequence[OstromSpotPrice],
+        time_zone: tzinfo = UTC,
     ) -> OstromSpotPrice | None:
         """Find the minimum spot price for tomorrow."""
-        now = datetime.now(tz=UTC)
-        tomorrow_start = datetime(now.year, now.month, now.day, tzinfo=UTC) + timedelta(
-            days=1
-        )
+        now = datetime.now(tz=time_zone)
+
+        tomorrow_start = datetime(
+            now.year, now.month, now.day, tzinfo=time_zone
+        ) + timedelta(days=1)
+
         tomorrow_end = tomorrow_start + timedelta(days=1)
 
         return OstromConsumerData.find_minimum_spot_price_time_range(

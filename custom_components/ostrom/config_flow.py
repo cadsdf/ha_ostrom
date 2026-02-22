@@ -29,6 +29,8 @@ from .ostrom_provider import OstromProvider
 
 _LOGGER = logging.getLogger(__name__)
 
+FORM_KEY_CONTRACT = "contract"
+
 DATA_SCHEMA = vol.Schema(
     {
         vol.Required(KEY_USER): str,
@@ -69,7 +71,13 @@ def _raise_initialize_error(error: OstromError) -> NoReturn:
     ):
         _raise_invalid_auth()
 
-    _raise_cannot_connect()
+    if (
+        isinstance(error.exception, aiohttp.ClientResponseError)
+        and error.exception.status == 429
+    ):
+        raise RateLimitedError(str(error))
+
+    raise CannotConnectWithReason(str(error))
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -85,12 +93,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.provider: OstromProvider | None = None
         self.contracts_by_id: dict[str, OstromContract] = {}
         self.contract_choices: dict[str, str] = {}
+        self.error_detail: str = ""
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Handle credentials step."""
         errors: dict[str, str] = {}
+        self.error_detail = ""
 
         if user_input is not None:
             self.user = user_input[KEY_USER]
@@ -121,6 +131,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except ConfigEntryAuthFailed:
                 errors["base"] = "invalid_auth"
                 _LOGGER.warning("Invalid authentication for user %s", self.user)
+            except RateLimitedError as err:
+                errors["base"] = "rate_limited"
+                self.error_detail = str(err)
+                _LOGGER.warning(
+                    "Rate limited for user %s: %s", self.user, self.error_detail
+                )
+            except CannotConnectWithReason as err:
+                errors["base"] = "cannot_connect"
+                self.error_detail = str(err)
+                _LOGGER.warning(
+                    "Cannot connect for user %s: %s", self.user, self.error_detail
+                )
             except ConfigEntryNotReady:
                 errors["base"] = "cannot_connect"
                 _LOGGER.warning("Cannot connect for user %s", self.user)
@@ -135,6 +157,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=DATA_SCHEMA,
             errors=errors,
+            description_placeholders={
+                "error_detail": f"\n\nLast error: {self.error_detail}"
+                if self.error_detail
+                else ""
+            },
         )
 
     async def async_step_select_contract(
@@ -142,13 +169,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> dict[str, Any]:
         """Handle contract selection step."""
         contract_schema = vol.Schema(
-            {vol.Required(KEY_CONTRACT_ID): vol.In(self.contract_choices)}
+            {vol.Required(FORM_KEY_CONTRACT): vol.In(self.contract_choices)}
         )
 
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            contract_id: str = user_input[KEY_CONTRACT_ID]
+            contract_id: str = user_input[FORM_KEY_CONTRACT]
 
             await self.async_set_unique_id(contract_id)
             self._abort_if_unique_id_configured()
@@ -208,3 +235,11 @@ class OstromOptionsFlowHandler(config_entries.OptionsFlow):
 
 class NoContractsFound(HomeAssistantError):
     """Error to indicate no contracts are available for this account."""
+
+
+class CannotConnectWithReason(HomeAssistantError):
+    """Error to indicate connection failures with a user-visible reason."""
+
+
+class RateLimitedError(HomeAssistantError):
+    """Error to indicate upstream API rate limiting (HTTP 429)."""
