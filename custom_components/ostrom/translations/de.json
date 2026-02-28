@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Ostrom API-Zugangsdaten",
-        "description": "Zugangsdaten können unter developer.ostrom-api.io erstellt werden, falls nicht verfügbar.",
+        "description": "Zugangsdaten können unter developer.ostrom-api.io erstellt werden, falls nicht verfügbar. Letzter Fehler: {error_detail}",
         "data": {
           "user": "Benutzername",
           "password": "Passwort"

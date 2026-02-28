@@ -573,31 +573,36 @@ class OstromConsumerData:
             else (None, None)
         )
 
-        consumption_source = (
-            monthly_consumptions if monthly_consumptions else consumptions
-        )
-
-        consumption_this_month_kwh = OstromConsumerData.calculate_total_consumption_kwh(
-            consumption_source,
-            time_start=month_start,
-            time_end=month_end,
-        )
-
-        consumption_this_year_kwh = OstromConsumerData.calculate_total_consumption_kwh(
-            consumption_source,
-            time_start=year_start,
-            time_end=year_end,
-        )
-
-        consumption_this_contract_year_kwh = (
-            OstromConsumerData.calculate_total_consumption_kwh(
-                consumption_source,
-                time_start=contract_year_start,
-                time_end=contract_year_end,
+        if monthly_consumptions is not None:
+            consumption_this_month_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=month_start,
+                    time_end=month_end,
+                )
             )
-            if contract_year_start is not None and contract_year_end is not None
-            else None
-        )
+
+            consumption_this_year_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=year_start,
+                    time_end=year_end,
+                )
+            )
+
+            consumption_this_contract_year_kwh = (
+                OstromConsumerData.calculate_total_consumption_kwh(
+                    monthly_consumptions,
+                    time_start=contract_year_start,
+                    time_end=contract_year_end,
+                )
+                if contract_year_start is not None and contract_year_end is not None
+                else None
+            )
+        else:
+            consumption_this_month_kwh = None
+            consumption_this_year_kwh = None
+            consumption_this_contract_year_kwh = None
 
         normalized_contract_start_date = None
 
@@ -642,11 +647,16 @@ class OstromConsumerData:
         if not consumptions:
             return None
 
-        total = sum(
-            item.consumption_kwh
-            for item in consumptions
-            if time_start <= item.date < time_end
-        )
+        total = 0.0
+        matched_any = False
+
+        for item in consumptions:
+            if time_start <= item.date < time_end:
+                matched_any = True
+                total += item.consumption_kwh
+
+        if not matched_any:
+            return None
 
         return total
 
@@ -786,7 +796,10 @@ class OstromConsumerData:
             now=now,
         )
 
-        end = datetime(start.year + 1, start.month, start.day, tzinfo=time_zone)
+        target_year = start.year + 1
+        end_day = min(start.day, monthrange(target_year, start.month)[1])
+        end = datetime(target_year, start.month, end_day, tzinfo=time_zone)
+
         return start, end
 
     @staticmethod

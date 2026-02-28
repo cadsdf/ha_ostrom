@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Ostrom API Credentials",
-        "description": "Please create API credentials at developer.ostrom-api.io if you haven't done so.",
+        "description": "Please create API credentials at developer.ostrom-api.io if you haven't done so. Last error: {error_detail}",
         "data": {
           "user": "Username",
           "password": "Password"

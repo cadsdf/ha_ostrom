@@ -246,14 +246,17 @@ class OstromProvider:
             _LOGGER.warning("Contract ID or zip code not set, cannot fetch data")
             return None
 
-        now = datetime.now(tz=UTC)
-
-        # Currently live data is not available, the consumption from the past day can be accessed from noonish onwards.
-        consumption_start_time: datetime = (now - timedelta(days=1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        now_local = datetime.now(tz=self.time_zone)
+        today_start = datetime(
+            now_local.year,
+            now_local.month,
+            now_local.day,
+            tzinfo=self.time_zone,
         )
 
-        consumption_time_end: datetime = consumption_start_time + timedelta(days=1)
+        # Currently live data is not available, the consumption from the past day can be accessed from noonish onwards.
+        consumption_start_time: datetime = today_start - timedelta(days=1)
+        consumption_time_end: datetime = today_start
 
         consumptions: (
             list[OstromConsumption] | None
@@ -266,10 +269,10 @@ class OstromProvider:
             return None
 
         selected_contract = self.get_selected_contract()
-        now_local = datetime.now(tz=self.time_zone)
 
         monthly_consumption_start = OstromConsumerData.get_current_year_start(
-            time_zone=self.time_zone
+            time_zone=self.time_zone,
+            now=now_local,
         )
 
         if selected_contract is not None:
@@ -290,13 +293,9 @@ class OstromProvider:
 
         if monthly_consumptions is None:
             _LOGGER.warning("Failed to fetch monthly consumption data")
-            monthly_consumptions = []
 
         # Get spot price data for the same time range as consumption, plus future hours for forecasting
-        tomorrow_start_time: datetime = (now + timedelta(days=1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
+        tomorrow_start_time: datetime = today_start + timedelta(days=1)
         spot_price_end_time: datetime = tomorrow_start_time + timedelta(days=1)
 
         spot_prices: list[OstromSpotPrice] | None = await self._fetch_spot_prices(
