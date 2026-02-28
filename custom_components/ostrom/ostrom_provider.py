@@ -1,7 +1,7 @@
 """Ostrom electricity provider API integration."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from .ostrom_api_client import OstromAPIClient
 from .ostrom_data import (
@@ -28,6 +28,7 @@ class OstromProvider:
         endpoint_data: str | None = OstromAPIClient.ENDPOINT_PRODUCTION_DATA,
         zip_code: str | None = None,
         contract_id: str | None = None,
+        time_zone: tzinfo = UTC,
     ) -> None:
         """Initialize."""
         self.expire = datetime.now(tz=UTC)
@@ -41,6 +42,7 @@ class OstromProvider:
 
         self.zip_code: str | None = zip_code
         self.contract_id: str | None = contract_id
+        self.time_zone: tzinfo = time_zone
         self.consumer_info: OstromCustomerInfo | None = None
         self.consumer_data: OstromConsumerData | None = None
 
@@ -176,14 +178,21 @@ class OstromProvider:
         return contracts
 
     async def _fetch_energy_consumption(
-        self, contract_id: str, time_start: datetime, time_end: datetime
+        self,
+        contract_id: str,
+        time_start: datetime,
+        time_end: datetime,
+        resolution: str = "HOUR",
     ) -> list[OstromConsumption] | None:
         """Fetch energy consumption data for a given contract ID."""
 
         consumption_data: (
             dict[str, list[dict[str, str | float]]] | None
         ) = await self.client.get_consumption_by_interval(
-            start_date=time_start, end_date=time_end, contract_id=contract_id
+            start_date=time_start,
+            end_date=time_end,
+            contract_id=contract_id,
+            resolution=resolution,
         )
 
         if not consumption_data:
@@ -237,13 +246,17 @@ class OstromProvider:
             _LOGGER.warning("Contract ID or zip code not set, cannot fetch data")
             return None
 
-        now = datetime.now(tz=UTC)
+        now_local = datetime.now(tz=self.time_zone)
+        today_start = datetime(
+            now_local.year,
+            now_local.month,
+            now_local.day,
+            tzinfo=self.time_zone,
+        )
 
         # Currently live data is not available, the consumption from the past day can be accessed from noonish onwards.
-        consumption_start_time: datetime = (now - timedelta(days=1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        consumption_time_end: datetime = consumption_start_time + timedelta(days=1)
+        consumption_start_time: datetime = today_start - timedelta(days=1)
+        consumption_time_end: datetime = today_start
 
         consumptions: (
             list[OstromConsumption] | None
@@ -255,10 +268,34 @@ class OstromProvider:
             _LOGGER.warning("Failed to fetch consumption data")
             return None
 
-        # Get spot price data for the same time range as consumption, plus future hours for forecasting
-        tomorrow_start_time: datetime = (now + timedelta(days=1)).replace(
-            hour=0, minute=0, second=0, microsecond=0
+        selected_contract = self.get_selected_contract()
+
+        monthly_consumption_start = OstromConsumerData.get_current_year_start(
+            time_zone=self.time_zone,
+            now=now_local,
         )
+
+        if selected_contract is not None:
+            contract_year_start = OstromConsumerData.get_current_contract_year_start(
+                selected_contract.start_date,
+                time_zone=self.time_zone,
+                now=now_local,
+            )
+            if contract_year_start < monthly_consumption_start:
+                monthly_consumption_start = contract_year_start
+
+        monthly_consumptions = await self._fetch_energy_consumption(
+            self.contract_id,
+            monthly_consumption_start,
+            now_local,
+            resolution="MONTH",
+        )
+
+        if monthly_consumptions is None:
+            _LOGGER.warning("Failed to fetch monthly consumption data")
+
+        # Get spot price data for the same time range as consumption, plus future hours for forecasting
+        tomorrow_start_time: datetime = today_start + timedelta(days=1)
         spot_price_end_time: datetime = tomorrow_start_time + timedelta(days=1)
 
         spot_prices: list[OstromSpotPrice] | None = await self._fetch_spot_prices(
@@ -270,7 +307,21 @@ class OstromProvider:
             return None
 
         return OstromConsumerData.from_data(
-            consumptions=consumptions, spot_prices=spot_prices
+            consumptions=consumptions,
+            spot_prices=spot_prices,
+            monthly_consumptions=monthly_consumptions,
+            contract_start_date=(
+                selected_contract.start_date if selected_contract else None
+            ),
+            current_monthly_deposit_amount_euro=(
+                selected_contract.current_monthly_deposit_amount
+                if selected_contract
+                else None
+            ),
+            contract_product_code=(
+                selected_contract.product_code if selected_contract else None
+            ),
+            time_zone=self.time_zone,
         )
 
 
