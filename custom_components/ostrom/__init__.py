@@ -23,15 +23,55 @@ ruff check <file> --select I --fix
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from .const import DOMAIN, SERVICE_REFRESH_DATA
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall
     from .coordinator import OstromCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: tuple[str, ...] = ("sensor", "button")
+
+
+def _get_runtime_store(hass: HomeAssistant) -> dict[str, Any]:
+    """Return the integration runtime store."""
+    return hass.data.setdefault(DOMAIN, {})
+
+
+async def _async_handle_refresh_data_service(hass: HomeAssistant, _: ServiceCall) -> None:
+    """Handle manual refresh requests for all loaded Ostrom entries."""
+    coordinators = list(_get_runtime_store(hass).values())
+
+    if not coordinators:
+        _LOGGER.debug("Refresh service called with no active Ostrom entries")
+        return
+
+    _LOGGER.debug("Manual refresh requested for %s Ostrom entr(y/ies)", len(coordinators))
+
+    for coordinator in coordinators:
+        await coordinator.async_request_refresh()
+
+
+async def async_setup(hass: HomeAssistant, _: dict[str, Any]) -> bool:
+    """Set up the Ostrom integration domain."""
+    _get_runtime_store(hass)
+
+    if not hass.services.has_service(DOMAIN, SERVICE_REFRESH_DATA):
+
+        async def async_handle_refresh_data(call: ServiceCall) -> None:
+            """Forward the refresh service call to the shared handler."""
+            await _async_handle_refresh_data_service(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_REFRESH_DATA,
+            async_handle_refresh_data,
+        )
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -49,6 +89,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Initial data fetch
     await coordinator.async_config_entry_first_refresh()
+
+    # Keep coordinator available for services and unload handling
+    _get_runtime_store(hass)[entry.entry_id] = coordinator
 
     # Make the coordinator available to other parts of the integration
     entry.runtime_data = coordinator
@@ -69,5 +112,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.debug("Unloading Ostrom integration")
 
-    # Unload platforms (sensors)
-    return await hass.config_entries.async_unload_platforms(entry, list(PLATFORMS))
+    # Unload platforms
+    unloaded = await hass.config_entries.async_unload_platforms(entry, list(PLATFORMS))
+
+    if unloaded:
+        coordinator: OstromCoordinator = entry.runtime_data
+        await coordinator.async_shutdown()
+
+        runtime_store = _get_runtime_store(hass)
+        runtime_store.pop(entry.entry_id, None)
+
+        if not runtime_store and hass.services.has_service(DOMAIN, SERVICE_REFRESH_DATA):
+            hass.services.async_remove(DOMAIN, SERVICE_REFRESH_DATA)
+
+    return unloaded

@@ -14,11 +14,13 @@ Refaktorierte Codebase mit typisierten Datenmodellen und zusätzlichen Sensoren.
   - `ostrom_data.py` für typisierte Datenmodelle
 
 - Erweitertes Entitätsmodell:
-  - dedizierte Sensoren für aktuelle Preisbestandteile, monatliche Gebühren und Minimum-Preis-Zeitfenster
-  - dedizierte Zeitsensoren für alle Minimum-Preis-Ziele
-  - manueller Aktualisierungs-Button `button.ostrom_refresh_data`
-  - Entitäten werden jetzt unter einem gemeinsamen Home-Assistant-Gerät zusammengefasst, inklusive Gesamtübersicht aller zugehörigen Entitäten
+  - Sensoren für aktuelle Preise, monatliche Gebühren, Verbrauch und Minimum-Preis-Zeitfenster
+  - Zeitsensoren für alle Minimum-Preis-Ziele sowie Vertragsdaten
+  - Button zum manuellen Aktualisieren der Daten `button.ostrom_refresh_data`
+  - Refresh-Service für Automatisierungen `ostrom.refresh_data`
+  - Entitäten werden unter einem gemeinsamen Home-Assistant-Gerät zusammengefasst, inklusive Gesamtübersicht aller zugehörigen Entitäten
 
+- Integrationstest-Grundgerüst (Config Flow, Coordinator, Entitäten)
 - Ruff Linting-Workflow für lokale Entwicklung
 
 - Dev-Skripte im Project Root ergänzt:
@@ -38,6 +40,14 @@ Refaktorierte Codebase mit typisierten Datenmodellen und zusätzlichen Sensoren.
 - `sensor.ostrom_monthly_base_fee`
 - `sensor.ostrom_monthly_grid_fee`
 - `sensor.ostrom_monthly_fees`
+- `sensor.ostrom_consumption_yesterday`
+- `sensor.ostrom_cost_yesterday`
+- `sensor.ostrom_consumption_this_month`
+- `sensor.ostrom_consumption_this_year`
+- `sensor.ostrom_consumption_this_contract_year`
+- `sensor.ostrom_contract_start`
+- `sensor.ostrom_current_monthly_deposit_amount`
+- `sensor.ostrom_contract_product_code`
 - `sensor.ostrom_minimum_price_today`
 - `sensor.ostrom_minimum_price_upcoming_today`
 - `sensor.ostrom_minimum_price_tomorrow`
@@ -52,6 +62,9 @@ Refaktorierte Codebase mit typisierten Datenmodellen und zusätzlichen Sensoren.
 
 #### Buttons
 - `button.ostrom_refresh_data`
+
+#### Services
+- `ostrom.refresh_data`
 
 Hinweis: Die exakten Entity IDs können abweichen, wenn Entitäten in Home Assistant umbenannt wurden.
 
@@ -89,10 +102,42 @@ series:
       });
 ```
 
-### Präzision / Einheiten
+### Automation für Benachrichtigung bei Spotpreis-Update
 
-- EUR/kWh-Sensoren verwenden 4 Nachkommastellen (empfohlene Anzeigepräzision)
-- Monatliche EUR-Gebührensensoren verwenden 2 Nachkommastellen (empfohlene Anzeigepräzision)
+Handy-Push-Benachrichtigung mit dem Mindestpreis und der Uhrzeit für morgen, sobald die Daten verfügbar sind:
+
+```
+alias: Electricity Spot Prices Updated
+description: ""
+mode: single
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.ostrom_minimum_price_tomorrow
+    from:
+      - unknown
+conditions: []
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: Strompreise für morgen
+      message: >-
+        {% set price = states('sensor.ostrom_minimum_price_tomorrow') %} {% set
+        time = states('sensor.ostrom_minimum_price_tomorrow_time') %}
+
+        {% if price not in ['unknown', 'unavailable', 'none', ''] and time not
+        in ['unknown', 'unavailable', 'none', ''] %}
+          Strompreis-Minimum {{ (price | float(0) * 100) | round(2) }} ct/kWh um {{ as_timestamp(time) | timestamp_custom('%H:%M', true) }} Uhr
+        {% else %}
+          Strompreis-Minimum für morgen ist aktuell nicht verfügbar.
+        {% endif %}
+```
+
+### Services
+
+- `ostrom.refresh_data`
+
+Service zur sofortigen Aktualisierung aller Daten. Praktischer für Automationen und Skripte als der Dashboard-Button `button.ostrom_refresh_data`.
 
 ### Entwicklung
 

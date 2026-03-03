@@ -16,11 +16,13 @@ Refactored codebase with typed data models and additional sensors.
   - `ostrom_data.py` for typed data models
 
 - Expanded entity model:
-  - dedicated sensors for current price parts, monthly fees, and minimum-price windows
-  - dedicated timestamp sensors for all minimum-price targets
-  - manual refresh button `button.ostrom_refresh_data`
-  - integration entities are now grouped under a single Home Assistant device for a consolidated entity overview
+  - sensors for current prices, monthly fees, consumption totals, and minimum-price windows
+  - timestamp sensors for all minimum-price targets and contract metadata
+  - refresh button for manual data update `button.ostrom_refresh_data`
+  - refresh service for automations `ostrom.refresh_data`
+  - integration entities are grouped under a single Home Assistant device for a consolidated overview
 
+- Added integration test scaffolding for config flow, coordinator behavior, and entity output
 - Added Ruff linting workflow for local development
 
 - Added root-level development scripts for local API access and visualization:
@@ -41,6 +43,14 @@ Refactored codebase with typed data models and additional sensors.
 - `sensor.ostrom_monthly_base_fee`
 - `sensor.ostrom_monthly_grid_fee`
 - `sensor.ostrom_monthly_fees`
+- `sensor.ostrom_consumption_yesterday`
+- `sensor.ostrom_cost_yesterday`
+- `sensor.ostrom_consumption_this_month`
+- `sensor.ostrom_consumption_this_year`
+- `sensor.ostrom_consumption_this_contract_year`
+- `sensor.ostrom_contract_start`
+- `sensor.ostrom_current_monthly_deposit_amount`
+- `sensor.ostrom_contract_product_code`
 - `sensor.ostrom_minimum_price_today`
 - `sensor.ostrom_minimum_price_upcoming_today`
 - `sensor.ostrom_minimum_price_tomorrow`
@@ -55,6 +65,9 @@ Refactored codebase with typed data models and additional sensors.
 
 #### Buttons
 - `button.ostrom_refresh_data`
+
+#### Services
+- `ostrom.refresh_data`
 
 Note: exact entity IDs can vary if names are customized in Home Assistant.
 
@@ -78,24 +91,74 @@ Note: exact entity IDs can vary if names are customized in Home Assistant.
 ### ApexCharts Example
 
 ```yaml
-type: custom:apexcharts-card
-graph_span: 48h
-span:
-  start: hour
-  offset: "-12h"
-series:
-  - entity: sensor.ostrom_forecast
-    name: Ostrom Forecast
-    data_generator: |
-      return (entity.attributes.data || []).map((row) => {
-        return [new Date(row.date).getTime(), row.price];
-      });
+- type: custom:apexcharts-card
+  graph_span: 48h
+  span:
+    start: hour
+    offset: "-12h"
+  now:
+    show: true
+    label: Now
+  all_series_config:
+    unit: €/kWh
+    float_precision: 4
+  header:
+    show: true
+    show_states: true
+    colorize_states: true
+    title: Forecast
+  series:
+    - entity: sensor.ostrom_forecast
+      data_generator: |
+        return entity.attributes.data.map((start, index) => {
+          return [new Date(start["date"]).getTime(), (entity.attributes.data[index]["price"])];
+        });
+      extend_to: false
+      show:
+        legend_value: false
+        in_header: false
+      name: Spot Prices
+    - entity: sensor.ostrom_forecast
+      name: Current Price
+      extend_to: now
 ```
 
-### Precision / Units
+### Spot Price Update Notification Automation
 
-- EUR/kWh sensors use 4 decimals (suggested display precision)
-- EUR monthly fee sensors use 2 decimals (suggested display precision)
+Get a push notification on your phone with minimum price and time for tomorrow as soon as the data is available:
+
+```
+alias: Electricity Spot Prices Updated
+description: ""
+mode: single
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.ostrom_minimum_price_tomorrow
+    from:
+      - unknown
+conditions: []
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      title: Spot Price Update
+      message: >-
+        {% set price = states('sensor.ostrom_minimum_price_tomorrow') %} {% set
+        time = states('sensor.ostrom_minimum_price_tomorrow_time') %}
+
+        {% if price not in ['unknown', 'unavailable', 'none', ''] and time not
+        in ['unknown', 'unavailable', 'none', ''] %}
+          Spot price minimum {{ (price | float(0) * 100) | round(2) }} ct/kWh at {{ as_timestamp(time) | timestamp_custom('%H:%M', true) }}
+        {% else %}
+          Spot price minimum currently unavailable.
+        {% endif %}
+```
+
+### Services
+
+- `ostrom.refresh_data`
+
+Service to refresh all data immediately. Useful in automations and scripts, while `button.ostrom_refresh_data` remains convenient for dashboards.
 
 ### Development
 

@@ -1,0 +1,117 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ostrom API-Zugangsdaten",
+        "description": "Zugangsdaten können unter developer.ostrom-api.io erstellt werden, falls nicht verfügbar. Letzter Fehler: {error_detail}",
+        "data": {
+          "user": "Benutzername",
+          "password": "Passwort"
+        }
+      },
+      "select_contract": {
+        "title": "Ostrom Vertragsauswahl",
+        "description": "Bitte Stromvertrag wählen, der für diese Integration verwendet werden soll.",
+        "data": {
+          "contract": "Zu verwendender Ostrom-Vertrag"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "invalid_auth": "Ungültige Anmeldedaten",
+      "rate_limited": "Ratenlimit erreicht (HTTP 429). Bitte warte einige Minuten und versuche es erneut.",
+      "no_contracts": "Für dieses Konto wurden keine Verträge gefunden",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Dieser Vertrag ist bereits konfiguriert"
+    }
+  },
+  "entity": {
+    "button": {
+      "refresh_data": {
+        "name": "Daten aktualisieren"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status"
+      },
+      "electricity_price": {
+        "name": "Aktueller Strompreis"
+      },
+      "net_energy_price": {
+        "name": "Aktueller Netto-Energiepreis"
+      },
+      "taxes_and_levies": {
+        "name": "Aktuelle Steuern und Umlagen"
+      },
+      "forecast": {
+        "name": "Strompreisprognose"
+      },
+      "monthly_base_fee": {
+        "name": "Monatliche Grundgebühr"
+      },
+      "monthly_grid_fee": {
+        "name": "Monatliche Netzentgelte"
+      },
+      "monthly_fees": {
+        "name": "Monatliche Gesamtgebühren"
+      },
+      "consumption_yesterday": {
+        "name": "Verbrauch gestern"
+      },
+      "cost_yesterday": {
+        "name": "Kosten gestern"
+      },
+      "consumption_this_month": {
+        "name": "Verbrauch diesen Monat"
+      },
+      "consumption_this_year": {
+        "name": "Verbrauch dieses Jahr"
+      },
+      "consumption_this_contract_year": {
+        "name": "Verbrauch aktuelles Vertragsjahr"
+      },
+      "contract_start": {
+        "name": "Vertragsbeginn"
+      },
+      "current_monthly_deposit_amount": {
+        "name": "Monatlicher Abschlag"
+      },
+      "contract_product_code": {
+        "name": "Vertragstyp"
+      },
+      "minimum_price_today": {
+        "name": "Niedrigster Preis heute"
+      },
+      "minimum_price_upcoming_today": {
+        "name": "Niedrigster kommender Preis heute"
+      },
+      "minimum_price_tomorrow": {
+        "name": "Niedrigster Preis morgen"
+      },
+      "minimum_price_all_available": {
+        "name": "Niedrigster Preis (alle verfügbaren Daten)"
+      },
+      "minimum_price_today_time": {
+        "name": "Zeit niedrigster Preis heute"
+      },
+      "minimum_price_upcoming_today_time": {
+        "name": "Zeit niedrigster kommender Preis heute"
+      },
+      "minimum_price_tomorrow_time": {
+        "name": "Zeit niedrigster Preis morgen"
+      },
+      "minimum_price_all_available_time": {
+        "name": "Zeit niedrigster Preis (alle verfügbaren Daten)"
+      }
+    },
+    "binary_sensor": {
+      "lowest_price_is_now": {
+        "name": "Niedrigster Preis ist jetzt"
+      }
+    }
+  }
+}

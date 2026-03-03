@@ -19,6 +19,7 @@ Endpoints:
 
 """
 
+import asyncio
 import base64
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -40,6 +41,7 @@ class OstromAPIClient:
     RESOURCE_ENERGY_CONSUMPTION: str = "/contracts/{contract_id}/energy-consumption"
     RESOURCE_SPOT_PRICES: str = "/spot-prices"
     REQUEST_TIMEOUT_SEC: int = 10
+    TOKEN_EXPIRY_SKEW_SEC: int = 120
 
     def __init__(
         self,
@@ -78,6 +80,7 @@ class OstromAPIClient:
 
         self.token: str | None = None
         self.expiry_time: datetime | None = None
+        self._token_lock = asyncio.Lock()
 
     def _create_basic_auth(self) -> str:
         """Create Basic Authorization header from client credentials."""
@@ -139,21 +142,53 @@ class OstromAPIClient:
 
         time_now: datetime = datetime.now(tz=UTC)
 
-        # Check if a token exists and is still valid
-        token_valid: bool = (
+        # Check if a token exists and is still valid with a safety margin.
+        # This prevents edge cases where the token expires between validation and request.
+        token_valid_with_skew: bool = (
             self.token is not None
             and self.expiry_time is not None
-            and time_now < self.expiry_time
+            and (time_now + timedelta(seconds=OstromAPIClient.TOKEN_EXPIRY_SKEW_SEC))
+            < self.expiry_time
         )
 
-        # Return existing token if valid and no refresh is forced
-        if token_valid and not force_refresh:
+        if token_valid_with_skew and not force_refresh:
             return self.token
 
-        # Otherwise, refresh the token
-        await self.refresh_access_token()
+        # Serialize refreshes to avoid race conditions across concurrent requests.
+        async with self._token_lock:
+            time_now = datetime.now(tz=UTC)
 
-        return self.token
+            token_valid_with_skew = (
+                self.token is not None
+                and self.expiry_time is not None
+                and (
+                    time_now + timedelta(seconds=OstromAPIClient.TOKEN_EXPIRY_SKEW_SEC)
+                )
+                < self.expiry_time
+            )
+
+            if token_valid_with_skew and not force_refresh:
+                return self.token
+
+            current_token = self.token
+            current_expiry = self.expiry_time
+
+            refresh_error = await self.refresh_access_token()
+
+            if refresh_error is not None:
+                # Fallback to currently cached token if still valid at this moment.
+                if (
+                    current_token is not None
+                    and current_expiry is not None
+                    and datetime.now(tz=UTC) < current_expiry
+                ):
+                    return current_token
+
+                self.token = None
+                self.expiry_time = None
+                return None
+
+            return self.token
 
     async def make_request(
         self, method: str, endpoint: str, **kwargs: Any
@@ -194,7 +229,14 @@ class OstromAPIClient:
         ):
             # If unauthorized, try refreshing token once
             if response.status == 401:
+                self.token = None
+                self.expiry_time = None
+
                 token = await self.get_access_token(force_refresh=True)
+
+                if token is None:
+                    return None
+
                 headers["authorization"] = f"Bearer {token}"
 
                 async with session.request(
