@@ -52,6 +52,11 @@ class OstromBaseEntity(CoordinatorEntity[OstromCoordinator]):
     """Base class for all Ostrom entities."""
 
     @property
+    def available(self) -> bool:
+        """Keep entities available while showing API health via the status sensor."""
+        return True
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return shared device metadata so entities are grouped in one device."""
         return DeviceInfo(

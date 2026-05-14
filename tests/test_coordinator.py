@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
 from custom_components.ostrom.coordinator import OstromCoordinator
 from custom_components.ostrom.ostrom_error import OstromError
+
+pytestmark = pytest.mark.asyncio
 
 
 async def test_coordinator_update_success(hass, mock_config_entry, sample_consumer_data) -> None:
@@ -34,3 +38,5 @@ async def test_coordinator_update_failure_sets_error(hass, mock_config_entry) ->
     assert data.ok is False
     assert data.error is not None
     assert "API error" in data.error
+
+    await coordinator.async_shutdown()
