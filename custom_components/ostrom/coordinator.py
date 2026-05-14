@@ -90,6 +90,7 @@ class OstromCoordinator(DataUpdateCoordinator):
         self._provider_initialized: bool = False
         self._cancel_hourly_update: Callable[[], None] | None = None
         self._cancel_debug_update: Callable[[], None] | None = None
+        self._cancel_retry_update: Callable[[], None] | None = None
 
         # Init base DataUpdateCoordinator and pass update method
         super().__init__(
@@ -157,7 +158,7 @@ class OstromCoordinator(DataUpdateCoordinator):
             )
 
             # Schedule retry update
-            async_call_later(self._hass, delay.total_seconds(), self._retry_update)
+            self._schedule_retry_update(delay)
 
             current = self.get_data()
             current.ok = False
@@ -165,14 +166,34 @@ class OstromCoordinator(DataUpdateCoordinator):
 
             return current
         else:
+            self._cancel_scheduled_retry()
             consumer_data.ok = True
             consumer_data.error = None
             self.data = consumer_data
 
             return consumer_data
 
+    def _cancel_scheduled_retry(self) -> None:
+        """Cancel a pending failure retry, if one is scheduled."""
+        if self._cancel_retry_update is None:
+            return
+
+        self._cancel_retry_update()
+        self._cancel_retry_update = None
+
+    def _schedule_retry_update(self, delay: timedelta) -> None:
+        """Schedule a single retry after a transient update failure."""
+        self._cancel_scheduled_retry()
+        self._cancel_retry_update = async_call_later(
+            self._hass,
+            delay.total_seconds(),
+            self._retry_update,
+        )
+
     async def _retry_update(self, _) -> None:
         """Retry update after failure."""
+
+        self._cancel_retry_update = None
 
         LOGGER.info("Retrying API update after failure")
 
@@ -277,3 +298,5 @@ class OstromCoordinator(DataUpdateCoordinator):
         if self._cancel_hourly_update is not None:
             self._cancel_hourly_update()
             self._cancel_hourly_update = None
+
+        self._cancel_scheduled_retry()
