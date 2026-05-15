@@ -23,6 +23,11 @@ class OstromRefreshDataButton(CoordinatorEntity[OstromCoordinator], ButtonEntity
         self._attr_name = "Ostrom Refresh Data"
         self._attr_icon = "mdi:refresh"
 
+    @property
+    def available(self) -> bool:
+        """Keep manual refresh usable after transient API update failures."""
+        return True
+
     async def async_press(self) -> None:
         """Handle button press."""
         await self.coordinator.async_request_refresh()
